@@ -1,27 +1,24 @@
 package offlinetx
 
 import (
-	ecct "github.com/consensys/gnark-crypto/ecc/twistededwards"
+	"Asyn_CBDC/util"
+
+	ecctedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
 	cir_eddsa "github.com/consensys/gnark/std/signature/eddsa"
 )
 
-type accountWit struct {
-	A twistededwards.Point
-	B twistededwards.Point
-}
-
 type offlineCircuit struct {
 	SigPublicKey       cir_eddsa.PublicKey `gnark:",public"`
 	Signature          cir_eddsa.Signature
-	Acc                accountWit
+	Acc                util.Account
 	TacSk              frontend.Variable
 	Seq                frontend.Variable
 	Seq1               frontend.Variable
 	ExpectedDelta      frontend.Variable    `gnark:",public"`
-	ExpectedDAcc       accountWit           `gnark:",public"`
+	ExpectedDAcc       util.Account         `gnark:",public"`
 	ExpectedDPublicKey twistededwards.Point `gnark:",public"`
 	PrivateKey         frontend.Variable
 	PublicKey          twistededwards.Point
@@ -33,7 +30,10 @@ type offlineCircuit struct {
 }
 
 func (circuit *offlineCircuit) Define(api frontend.API) error {
-	curve, err := twistededwards.NewEdCurve(api, ecct.BN254)
+	//choose curve
+	curvepara := ecctedwards.BN254
+
+	curve, err := twistededwards.NewEdCurve(api, curvepara)
 	if err != nil {
 		return err
 	}
@@ -58,20 +58,11 @@ func (circuit *offlineCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(delta_0, circuit.ExpectedDelta)
 
 	//g0bal,Dpk,delta1
-	_g1, _ := twistededwards.GetCurveParams(ecct.BN254)
+	_g1, _ := twistededwards.GetCurveParams(curvepara)
 	g1 := twistededwards.Point{X: _g1.Base[0], Y: _g1.Base[1]}
 	g1delta0 := curve.ScalarMul(g1, delta_0)
 
-	var c2sk twistededwards.Point
-	c2sk = curve.ScalarMul(circuit.Acc.B, circuit.PrivateKey)
-	var _c2sk twistededwards.Point
-	_c2sk = curve.Neg(c2sk)
-	var _complain twistededwards.Point
-	_complain = curve.Add(circuit.Acc.A, _c2sk)
-	var _g1delta0 twistededwards.Point
-	_g1delta0 = curve.Neg(g1delta0)
-	var g0bal twistededwards.Point
-	g0bal = curve.Add(_complain, _g1delta0)
+	g0bal := util.DecryptAcc(curve, circuit.Acc, circuit.PrivateKey, g1delta0)
 
 	var dpublickey twistededwards.Point
 	dpublickey = curve.ScalarMul(circuit.PublicKey, circuit.Alpha)
@@ -84,25 +75,23 @@ func (circuit *offlineCircuit) Define(api frontend.API) error {
 
 	plaintext := curve.Add(g0bal, g1delta1)
 
-	rpk := curve.ScalarMul(dpublickey, circuit.Randomness)
-	c1 := curve.Add(plaintext, rpk)
-	_h, _ := twistededwards.GetCurveParams(ecct.BN254)
-	h := twistededwards.Point{X: _h.Base[0], Y: _h.Base[1]}
-	c2 := curve.ScalarMul(h, circuit.Randomness)
+	_h, _ := twistededwards.GetCurveParams(curvepara)
+	acc := util.EncryptAcc(curve, plaintext, dpublickey, circuit.Randomness, _h)
+	c1 := acc.A
+	c2 := acc.B
 	api.AssertIsEqual(c1.X, circuit.ExpectedDAcc.A.X)
 	api.AssertIsEqual(c2.X, circuit.ExpectedDAcc.B.X)
 
 	//TK=g2*tk
-	_g2, _ := twistededwards.GetCurveParams(ecct.BN254)
-	g2 := twistededwards.Point{X: _g2.Base[0], Y: _g2.Base[1]}
-	tacpk := curve.ScalarMul(g2, circuit.TacSk)
+	_g2, _ := twistededwards.GetCurveParams(curvepara)
+	tacpk := util.CalculateTK(curve, _g2, circuit.TacSk)
 
 	//CTk
-	arpk := curve.ScalarMul(circuit.PublicKeyA, circuit.RandomnessA)
-	ac1 := curve.Add(tacpk, arpk)
-	_ah, _ := twistededwards.GetCurveParams(ecct.BN254)
-	ah := twistededwards.Point{X: _ah.Base[0], Y: _ah.Base[1]}
-	ac2 := curve.ScalarMul(ah, circuit.RandomnessA)
+	_ah, _ := twistededwards.GetCurveParams(curvepara)
+
+	cipher := util.EncryptTK(curve, tacpk, circuit.PublicKeyA, circuit.RandomnessA, _ah)
+	ac1 := cipher[0]
+	ac2 := cipher[1]
 	api.AssertIsEqual(ac1.X, circuit.ExpectedCTacPk[0].X)
 	api.AssertIsEqual(ac2.X, circuit.ExpectedCTacPk[1].X)
 

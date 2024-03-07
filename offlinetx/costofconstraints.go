@@ -1,6 +1,7 @@
 package offlinetx
 
 import (
+	"Asyn_CBDC/util"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -156,9 +157,9 @@ func OfflineTx() {
 	// assign message value
 	acc_c1 := acccipher.A
 	acc_c2 := acccipher.B
-	acc := accountWit{
-		twistededwards.Point{X: acc_c1.X, Y: acc_c1.Y},
-		twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
+	acc := util.Account{
+		A: twistededwards.Point{X: acc_c1.X, Y: acc_c1.Y},
+		B: twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
 	}
 	assignment.Acc = acc
 	assignment.TacSk = _tacSk
@@ -168,9 +169,9 @@ func OfflineTx() {
 
 	dacc_c1 := dacccipher.A
 	dacc_c2 := dacccipher.B
-	dacc := accountWit{
-		twistededwards.Point{X: dacc_c1.X, Y: dacc_c1.Y},
-		twistededwards.Point{X: dacc_c2.X, Y: dacc_c2.Y},
+	dacc := util.Account{
+		A: twistededwards.Point{X: dacc_c1.X, Y: dacc_c1.Y},
+		B: twistededwards.Point{X: dacc_c2.X, Y: dacc_c2.Y},
 	}
 	assignment.ExpectedDAcc = dacc
 	_expectpk := twistededwards.Point{X: dpublickey.pk.X, Y: dpublickey.pk.Y}
