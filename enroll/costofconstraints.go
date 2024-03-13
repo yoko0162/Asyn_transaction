@@ -12,22 +12,30 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
 )
 
-func Enroll() {
-	params, _ := twistededwards.GetCurveParams(ecctedwards.BN254)
+func T_Enroll() {
+	curveid := ecctedwards.BN254
+
+	params, _ := twistededwards.GetCurveParams(curveid)
 	hashFunc := hash.MIMC_BN254
 
-	var enroll util.Enroll
+	var enroll Enroll
 	enroll = enroll.Init(params, hashFunc)
 
 	var assignment enrollCircuit
 	assignment.TacSk = enroll.Tracesk
-	tacPk := enroll.Tracepk
-	assignment.ExpectedTacPk = tacPk
+	_TK := enroll.Tracepk
+	assignment.ExpectedTacPk = twistededwards.Point{X: _TK.Pk.X, Y: _TK.Pk.Y}
 	assignment.Seq = enroll.Seq
 	assignment.Balance = enroll.Bal
-	assignment.PublicKey = enroll.Pk
+	_pk := enroll.Pk
+	assignment.PublicKey = twistededwards.Point{X: _pk.Pk.X, Y: _pk.Pk.Y}
 	assignment.Randomness = enroll.R
-	assignment.ExpectedAcc = enroll.Acc
+	acc := util.Account{
+		A: twistededwards.Point{X: enroll.Acc[0].X, Y: enroll.Acc[0].Y},
+		B: twistededwards.Point{X: enroll.Acc[1].X, Y: enroll.Acc[1].Y},
+	}
+
+	assignment.ExpectedAcc = acc
 
 	var circuit enrollCircuit
 
