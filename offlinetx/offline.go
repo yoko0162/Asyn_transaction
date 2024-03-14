@@ -35,6 +35,9 @@ type DeriveKeypair struct {
 }
 
 type DeriveAccount struct {
+	G0      curve.PointAffine
+	G1      curve.PointAffine
+	H       curve.PointAffine
 	Delta   big.Int
 	Bal     big.Int
 	Keypair DeriveKeypair
@@ -76,11 +79,10 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	var testacc PrimitiveAccount
 	testacc = testacc.GetAccount(params, hash, balance, oldseq)
 	o.Delta = testacc.Delta
-	o.G0 = testacc.G0
+
 	o.Tracepk = testacc.Tracepk
 	o.Tracesk = testacc.Tracesk
-	o.G1 = testacc.G1
-	o.H = testacc.H
+
 	o.Sk = testacc.Sk
 	o.Pk = testacc.Pk
 	oldacc := testacc.Acc
@@ -110,6 +112,10 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	Dacc = Dacc.DaccountGen(params, hash, newseq, testacc)
 	o.Deriveacc = Dacc
 	o.Bal = Dacc.Bal
+
+	o.G0 = Dacc.G0
+	o.G1 = Dacc.G1
+	o.H = Dacc.H
 
 	//C_TK
 	_aprivatekey, _ := rand.Int(rand.Reader, params.Order)
@@ -214,5 +220,9 @@ func (d DeriveAccount) DaccountGen(params *twistededwards.CurveParams, hashFunc 
 
 	dacccipher := derivekey.DPk.Encrypt(dplaintext, dr, priacc.H)
 	d.Acc = dacccipher
+
+	d.G0 = priacc.G0
+	d.G1 = priacc.G1
+	d.H = priacc.H
 	return d
 }
