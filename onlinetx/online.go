@@ -1,11 +1,14 @@
 package onlinetx
 
 import (
+	"Asyn_CBDC/onlinetx/bulletproof"
 	"Asyn_CBDC/onlinetx/sigma"
 	"fmt"
 	"math/big"
 	"time"
 
+	eccfr "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	ecctedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
@@ -23,13 +26,38 @@ type sigmaProof struct {
 	challenge big.Int
 }
 
+type bulletProof struct {
+	commitV  eccfr.G1Affine
+	commitA  eccfr.G1Affine
+	commitS  eccfr.G1Affine
+	chall_y  big.Int
+	chall_z  big.Int
+	commitT1 eccfr.G1Affine
+	commitT2 eccfr.G1Affine
+	chall_x  big.Int
+	rp_taux  *big.Int
+	rp_miu   *big.Int
+	rp_lx    []*big.Int
+	rp_rx    []*big.Int
+	rp_tx    *big.Int
+	bpPara   bulletproof.BulletParams
+}
+
 func Verify() {
 	curveid := ecctedwards.BN254
 	params, _ := twistededwards.GetCurveParams(curveid)
+	modulus := fr.Modulus()
 
 	var s sender
-	sigmaproof, s := s.Sigmaprotocol(params, curveid)
+	s, sigmaproof, bpv, bpbal := s.zkpProof(params, curveid, modulus)
+	verifySigmaProtocol(s, sigmaproof)
+	fmt.Println("bulletproof_transaction amount:")
+	verifyBulletProof(bpv)
+	fmt.Println("bulletproof_account balance:")
+	verifyBulletProof(bpbal)
+}
 
+func verifySigmaProtocol(s sender, sigmaproof sigmaProof) {
 	commit_s := sigmaproof.commit[0]
 	commit_sh := sigmaproof.commit[1]
 	commit_r := sigmaproof.commit[2]
@@ -50,6 +78,7 @@ func Verify() {
 
 	/* */
 	starttime := time.Now()
+
 	var rp_sr_h curve.PointAffine
 	rp_sr_h.ScalarMultiplication(&s.h, &rp_sr.Rp)
 	var _commit_sh_chal_txsb curve.PointAffine
@@ -112,12 +141,86 @@ func Verify() {
 
 	endtime := time.Now()
 
+	/* debug */
+	fmt.Println("sigma:")
 	fmt.Println("rp_sr*h==commit_sh+challenge*txs.c2:", rp_sr_h.Equal(&commit_sh_chal_txsb))
 	fmt.Println("rp_sr*pk+rp_sv*g0==commit_s+challenge*txs.c1:", rp_sr_pk_rp_sv_g0.Equal(&commit_s_chal_txsa))
 	fmt.Println("rp_rr*h==commit_rh+challenge*txr.c2:", rp_rr_h.Equal(&commit_rh_chal_txrb))
 	fmt.Println("rp_rr*pk+rp_rv*g0==commit_r+challenge*txr.c1:", rp_rr_pk_rp_rv_g0.Equal(&commit_r_chal_txra))
 	fmt.Println("Enc(rp_bal)==commit_bal+challenge*cipher_bal:", (commit_bal1_chal_bal1.Equal(&cipher_rp_bal[0])) && (commit_bal2_chal_bal2.Equal(&cipher_rp_bal[1])))
 	fmt.Println("Enc(rp_v)==commit_v+challenge*cipher_v:", (commit_v1_chal_v1.Equal(&cipher_rp_v[0])) && (commit_v2_chal_v2.Equal(&cipher_rp_v[1])))
-	fmt.Println("verify:", endtime.Sub(starttime))
 
+	fmt.Println("verify:", endtime.Sub(starttime))
+}
+
+func verifyBulletProof(bpv bulletProof) {
+	P := bpv.bpPara.P
+	n := bpv.bpPara.N
+	G := bpv.bpPara.G
+	H := bpv.bpPara.H
+	g := bpv.bpPara.Bg
+	h := bpv.bpPara.Bh
+
+	/* */
+	starttime := time.Now()
+
+	//know lx,rx,tx
+	veritx := bulletproof.Calculate_tx(bpv.rp_lx, bpv.rp_rx)
+	//know y,z calculate δ(y,z)
+	veriyn := bulletproof.GenerateY(bpv.chall_y, n)
+	veriz2 := big.NewInt(0)
+	veriz2.Mul(&bpv.chall_z, &bpv.chall_z)
+	veriz2.Mod(veriz2, P)
+	veriz3 := big.NewInt(0)
+	veriz3.Mul(veriz2, &bpv.chall_z)
+	veriz3.Mod(veriz3, P)
+	z_z2 := big.NewInt(0)
+	z_z2.Sub(&bpv.chall_z, veriz2)
+	z_z2.Mod(z_z2, P)
+	y1n := bulletproof.Inner_produ(bulletproof.GenerateZ(*big.NewInt(1), n), veriyn)
+	y2n1 := bulletproof.Inner_produ(bulletproof.GenerateZ(*big.NewInt(1), n), bulletproof.Generate2n(n))
+	z_z2y1n := big.NewInt(0)
+	z_z2y1n.Mul(z_z2, y1n)
+	z_z2y1n.Mod(z_z2y1n, P)
+	z3y2n1 := big.NewInt(0)
+	z3y2n1.Mul(veriz3, y2n1)
+	z3y2n1.Mod(z3y2n1, P)
+	delta := big.NewInt(0)
+	delta.Sub(z_z2y1n, z3y2n1)
+	delta.Mod(delta, P)
+	//know tx,taux,V,x,T1,T2,delta(calculated)
+	verix2 := big.NewInt(0)
+	verix2.Mul(&bpv.chall_x, &bpv.chall_x)
+	verix2.Mod(verix2, P)
+	commit0 := bulletproof.Commit(g, h, bpv.rp_tx, bpv.rp_taux)
+	commitVg := bulletproof.Commit(bpv.commitV, g, veriz2, delta)
+	commitT := bulletproof.Commit(bpv.commitT1, bpv.commitT2, &bpv.chall_x, verix2)
+	var commitVgT eccfr.G1Affine
+	commitVgT.Add(&commitVg, &commitT)
+	//know A,S,x,z,y
+	H1 := bulletproof.GenerateH1(H, bpv.chall_y, n, P)
+	commitAS := bulletproof.Commit(bpv.commitA, bpv.commitS, big.NewInt(1), &bpv.chall_x)
+	vec := bulletproof.CalVectorAdd(bulletproof.CalVectorTimes(veriyn, &bpv.chall_z), bulletproof.CalVectorTimes(bulletproof.Generate2n(n), veriz2))
+	commitvec := bulletproof.CommitSingleVector(H1, vec)
+	z1 := bulletproof.GenerateZ1(bpv.chall_z, n)
+	commitz1 := bulletproof.CommitSingleVector(G, z1)
+	var _commitP eccfr.G1Affine
+	_commitP.Add(&commitAS, &commitz1)
+	var commitP eccfr.G1Affine
+	commitP.Add(&_commitP, &commitvec)
+	//know miu,lx,rx
+	commitmiu := bulletproof.CommitSingle(h, bpv.rp_miu)
+
+	commitlr := bulletproof.CommitVectors(G, H1, bpv.rp_lx, bpv.rp_rx)
+	var verip eccfr.G1Affine
+	verip.Add(&commitmiu, &commitlr)
+
+	endtime := time.Now()
+
+	/* debug */
+	fmt.Println("tx==<lx,rx>:(true is 0)", veritx.Cmp(bpv.rp_tx))
+	fmt.Println("commit0==commitVgT:", commit0.Equal(&commitVgT))
+	fmt.Println("veriP==commitP:", verip.Equal(&commitP))
+
+	fmt.Println("verify:", endtime.Sub(starttime))
 }
