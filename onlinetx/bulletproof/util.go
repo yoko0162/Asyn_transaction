@@ -56,7 +56,6 @@ func Generate_a_L(v *big.Int, n int64) ([]*big.Int, error) {
 		return nil, errors.New("invalid v!")
 	}
 
-	//binary expansion, left to right 7=[1,1,1,0,0,0...]
 	for i := n; i > 0; i-- {
 		temp := big.NewInt(1)
 		a_L = append(a_L, big.NewInt(int64(temp.Mod(v, big.NewInt(2)).Cmp(big.NewInt(0)))))
