@@ -49,15 +49,22 @@ func Verify() {
 	modulus := fr.Modulus()
 
 	var s sender
-	s, sigmaproof, bpv, bpbal := s.zkpProof(params, curveid, modulus)
-	verifySigmaProtocol(s, sigmaproof)
-	fmt.Println("bulletproof_transaction amount:")
-	verifyBulletProof(bpv)
-	fmt.Println("bulletproof_account balance:")
-	verifyBulletProof(bpbal)
+	s, s_sigmaproof, s_bpv, s_bpbal := s.zkpProof(params, curveid, modulus)
+	verifySenderSigmaProtocol(s, s_sigmaproof)
+	//fmt.Println("bulletproof_transaction amount:")
+	verifyBulletProof(s_bpv)
+	//fmt.Println("bulletproof_account balance:")
+	verifyBulletProof(s_bpbal)
+	//fmt.Println()
+
+	var r receiver
+	r, r_sigmaproof, r_bpbal := r.zkpProof(params, curveid, modulus, s)
+	verifyReceiverSigmaProtocol(r, r_sigmaproof)
+	//fmt.Println("bulletproof_account balance:")
+	verifyBulletProof(r_bpbal)
 }
 
-func verifySigmaProtocol(s sender, sigmaproof sigmaProof) {
+func verifySenderSigmaProtocol(s sender, sigmaproof sigmaProof) {
 	commit_s := sigmaproof.commit[0]
 	commit_sh := sigmaproof.commit[1]
 	commit_r := sigmaproof.commit[2]
@@ -80,7 +87,7 @@ func verifySigmaProtocol(s sender, sigmaproof sigmaProof) {
 	starttime := time.Now()
 
 	var rp_sr_h curve.PointAffine
-	rp_sr_h.ScalarMultiplication(&s.h, &rp_sr.Rp)
+	rp_sr_h.ScalarMultiplication(&s.dacc.H, &rp_sr.Rp)
 	var _commit_sh_chal_txsb curve.PointAffine
 	_commit_sh_chal_txsb.ScalarMultiplication(&s.txs.B, &challenge)
 	var commit_sh_chal_txsb curve.PointAffine
@@ -98,7 +105,7 @@ func verifySigmaProtocol(s sender, sigmaproof sigmaProof) {
 	commit_s_chal_txsa.Add(&_commit_s_chal_txsa, &commit_s.Commit)
 
 	var rp_rr_h curve.PointAffine
-	rp_rr_h.ScalarMultiplication(&s.h, &rp_rr.Rp)
+	rp_rr_h.ScalarMultiplication(&s.dacc.H, &rp_rr.Rp)
 	var _commit_rh_chal_txrb curve.PointAffine
 	_commit_rh_chal_txrb.ScalarMultiplication(&s.txr.B, &challenge)
 	var commit_rh_chal_txrb curve.PointAffine
@@ -142,13 +149,73 @@ func verifySigmaProtocol(s sender, sigmaproof sigmaProof) {
 	endtime := time.Now()
 
 	/* debug */
-	fmt.Println("sigma:")
+	fmt.Println("sender sigma:")
 	fmt.Println("rp_sr*h==commit_sh+challenge*txs.c2:", rp_sr_h.Equal(&commit_sh_chal_txsb))
 	fmt.Println("rp_sr*pk+rp_sv*g0==commit_s+challenge*txs.c1:", rp_sr_pk_rp_sv_g0.Equal(&commit_s_chal_txsa))
 	fmt.Println("rp_rr*h==commit_rh+challenge*txr.c2:", rp_rr_h.Equal(&commit_rh_chal_txrb))
 	fmt.Println("rp_rr*pk+rp_rv*g0==commit_r+challenge*txr.c1:", rp_rr_pk_rp_rv_g0.Equal(&commit_r_chal_txra))
 	fmt.Println("Enc(rp_bal)==commit_bal+challenge*cipher_bal:", (commit_bal1_chal_bal1.Equal(&cipher_rp_bal[0])) && (commit_bal2_chal_bal2.Equal(&cipher_rp_bal[1])))
 	fmt.Println("Enc(rp_v)==commit_v+challenge*cipher_v:", (commit_v1_chal_v1.Equal(&cipher_rp_v[0])) && (commit_v2_chal_v2.Equal(&cipher_rp_v[1])))
+
+	fmt.Println("verify:", endtime.Sub(starttime))
+}
+func verifyReceiverSigmaProtocol(r receiver, sigmaproof sigmaProof) {
+	commit_g0g1pk := sigmaproof.commit[0]
+	commit_h := sigmaproof.commit[1]
+	commit_bal := sigmaproof.commitenc[0]
+
+	rp_h := sigmaproof.response[0]
+	rp_g0 := sigmaproof.response[1]
+	rp_g1 := sigmaproof.response[2]
+	rp_bal := sigmaproof.response[3]
+	rp_bal_r := sigmaproof.response[4]
+
+	challenge := sigmaproof.challenge
+
+	acc := accAggregation(r.txr, r.dacc)
+
+	/* */
+	starttime := time.Now()
+	var rp_h_h curve.PointAffine
+	rp_h_h.ScalarMultiplication(&r.dacc.H, &rp_h.Rp)
+	var _commit_h_accb curve.PointAffine
+	_commit_h_accb.ScalarMultiplication(&acc[1], &challenge)
+	var commit_h_accb curve.PointAffine
+	commit_h_accb.Add(&_commit_h_accb, &commit_h.Commit)
+
+	var rp_g0_g0 curve.PointAffine
+	rp_g0_g0.ScalarMultiplication(&r.dacc.G0, &rp_g0.Rp)
+	var rp_g1_g1 curve.PointAffine
+	rp_g1_g1.ScalarMultiplication(&r.dacc.G1, &rp_g1.Rp)
+	var rp_h_pk curve.PointAffine
+	rp_h_pk.ScalarMultiplication(&r.pk, &rp_h.Rp)
+	var rp_g0g1pk curve.PointAffine
+	rp_g0g1pk.Add(&rp_g0_g0, &rp_g1_g1)
+	rp_g0g1pk.Add(&rp_g0g1pk, &rp_h_pk)
+	var _commit_g0g1pk_acca curve.PointAffine
+	_commit_g0g1pk_acca.ScalarMultiplication(&acc[0], &challenge)
+	var commit_g0g1pk_acca curve.PointAffine
+	commit_g0g1pk_acca.Add(&_commit_g0g1pk_acca, &commit_g0g1pk.Commit)
+
+	var plain_rp_bal curve.PointAffine
+	plain_rp_bal.ScalarMultiplication(&r._trans, &rp_bal.Rp)
+	cipher_rp_bal := r.apk.Encrypt(plain_rp_bal, &rp_bal_r.Rp, r.h)
+	var _chal_bal1 curve.PointAffine
+	_chal_bal1.ScalarMultiplication(&r.cipher_bal[0], &challenge)
+	var commit_bal1_chal_bal1 curve.PointAffine
+	commit_bal1_chal_bal1.Add(&commit_bal[0], &_chal_bal1)
+	var _chal_bal2 curve.PointAffine
+	_chal_bal2.ScalarMultiplication(&r.cipher_bal[1], &challenge)
+	var commit_bal2_chal_bal2 curve.PointAffine
+	commit_bal2_chal_bal2.Add(&commit_bal[1], &_chal_bal2)
+
+	endtime := time.Now()
+
+	/* debug */
+	fmt.Println("receiver sigma:")
+	fmt.Println("rp_h*h==commit_h+challenge*acc.c2:", rp_h_h.Equal(&commit_h_accb))
+	fmt.Println("rp_g0*g0+rp_g1*g1+rp_pk*pk==commit_g0g1pk+challenge*acc.c1", rp_g0g1pk.Equal(&commit_g0g1pk_acca))
+	fmt.Println("Enc(rp_bal)==commit_bal+challenge*cipher_bal:", (commit_bal1_chal_bal1.Equal(&cipher_rp_bal[0])) && (commit_bal2_chal_bal2.Equal(&cipher_rp_bal[1])))
 
 	fmt.Println("verify:", endtime.Sub(starttime))
 }
