@@ -22,7 +22,7 @@ func T_Enroll() {
 	enroll = enroll.Init(params, hashFunc)
 
 	var assignment enrollCircuit
-	assignment.TacSk = enroll.Tracesk
+	assignment.TacSk = enroll.Tracesk.Sk
 	_TK := enroll.Tracepk
 	assignment.ExpectedTacPk = twistededwards.Point{X: _TK.Pk.X, Y: _TK.Pk.Y}
 	assignment.Seq = enroll.Seq
