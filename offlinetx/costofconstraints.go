@@ -63,22 +63,14 @@ func T_OfflineTx() {
 	assignment.PublicKeyA = twistededwards.Point{X: offline.Apk.Pk.X, Y: offline.Apk.Pk.Y}
 	assignment.RandomnessA = offline.Ar
 
-	// public key bytes
 	_sigpublicKey := offline.Sigpk.Bytes()
-
-	// assign public key values
 	assignment.SigPublicKey.Assign(curveid, _sigpublicKey[:32])
-
-	// assign signature values
 	assignment.Signature.Assign(curveid, offline.Signature)
 
-	// witness
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	publicWitness, err := witness.Public()
-	// generate the proof
 	proof, err := groth16.Prove(r1cs, pk, witness)
 
-	// verify the proof
 	err = groth16.Verify(proof, vk, publicWitness)
 	if err != nil {
 		// invalid proof
