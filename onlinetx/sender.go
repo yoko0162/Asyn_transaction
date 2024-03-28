@@ -17,22 +17,27 @@ import (
 )
 
 type sender struct {
-	dacc       offlinetx.DeriveAccount
-	r_derivepk util.Publickey
-	v          big.Int  //witness,send to receiver
-	beta       *big.Int //send to receiver
-	r_txr      *big.Int //witness,send to receiver
-	txr        transactionTX
-	txs        transactionTX
-	r_txs      *big.Int //witness
-	bal        big.Int  //witness
-	apk        util.Publickey
-	r_bal      *big.Int
-	r_v        *big.Int
-	cipher_bal []curve.PointAffine
-	cipher_v   []curve.PointAffine
-	_trans     curve.PointAffine
-	h          curve.PointAffine
+	dacc        offlinetx.DeriveAccount
+	r_derivepk  util.Publickey
+	v           big.Int  //witness,send to receiver
+	beta        *big.Int //send to receiver
+	r_txr       *big.Int //witness,send to receiver
+	txr         transactionTX
+	txs         transactionTX
+	r_txs       *big.Int //witness
+	bal         big.Int  //witness
+	apk         util.Publickey
+	r_bal       *big.Int
+	r_v         *big.Int
+	cipher_bal  []curve.PointAffine
+	cipher_v    []curve.PointAffine
+	_trans      curve.PointAffine
+	h           curve.PointAffine
+	dateg       curve.PointAffine
+	dateh       curve.PointAffine
+	commentdate curve.PointAffine
+	commentr    *big.Int
+	date        *big.Int
 }
 
 func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_txs *big.Int, r_pk util.Publickey, v big.Int, o offlinetx.Offline) sender {
@@ -42,6 +47,11 @@ func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_
 	s.r_txs = r_txs
 	s.bal = o.Bal
 	s.apk = o.Apk
+	s.dateg = o.CommentG
+	s.dateh = o.CommentH
+	s.commentdate = *o.Comment
+	s.commentr = o.Commentr
+	s.date = o.Date
 
 	rb, _ := rand.Int(rand.Reader, params.Order)
 	rv, _ := rand.Int(rand.Reader, params.Order)
@@ -116,6 +126,8 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 	para_rh := commit.ParamsGen(params)
 	para_s := commit.ParamsGen(params)
 	para_r := commit.ParamsGen(params)
+	para_date := commit.ParamsGen(params)
+	para_dater := commit.ParamsGen(params)
 
 	para_bal := commit.ParamsGen(params)
 	para_bal_r := commit.ParamsGen(params)
@@ -126,6 +138,7 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 	commit_rh := commit.Commitmul(para_rh, &s.dacc.H)
 	commit_s := commit.Commitmuladd(para_sh, para_s, s.dacc.Keypair.DPk.Pk, s.dacc.G0)
 	commit_r := commit.Commitmuladd(para_rh, para_r, s.r_derivepk.Pk, s.dacc.G0)
+	commit_date := commit.Commitmuladd(para_date, para_dater, s.dateg, s.dateh)
 
 	commit_bal := commit.CommitencValid(para_bal, para_bal_r, s.apk, s.h, s._trans)
 	commit_v := commit.CommitencValid(para_v, para_v_r, s.apk, s.h, s._trans)
@@ -141,6 +154,8 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 	data = append(data, s.txs.B.Marshal()...)
 	data = append(data, s.txr.A.Marshal()...)
 	data = append(data, s.txr.B.Marshal()...)
+	data = append(data, commit_date.Commit.Marshal()...)
+	data = append(data, s.commentdate.Marshal()...)
 	data = append(data, commit_bal[0].Marshal()...)
 	data = append(data, commit_bal[1].Marshal()...)
 	data = append(data, commit_v[0].Marshal()...)
@@ -168,20 +183,25 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 	var rp_v_r sigma.Response
 	rp_v_r = rp_v_r.Response(para_v_r, challenge, s.r_v)
 
+	var rp_date sigma.Response
+	rp_date = rp_date.Response(para_date, challenge, s.date)
+	var rp_dater sigma.Response
+	rp_dater = rp_dater.Response(para_dater, challenge, s.commentr)
+
 	endtime := time.Now()
 
 	fmt.Println("sigma----generate commitment,challenge,response cost:", endtime.Sub(starttime))
 
 	return (sigmaProof{
 		commit: []sigma.CommitMent{
-			commit_s, commit_sh, commit_r, commit_rh,
+			commit_s, commit_sh, commit_r, commit_rh, commit_date,
 		},
 		commitenc: [][]curve.PointAffine{
 			commit_bal,
 			commit_v,
 		},
 		response: []sigma.Response{
-			rp_sr, rp_rr, rp_sv, rp_rv, rp_bal, rp_bal_r, rp_v, rp_v_r,
+			rp_sr, rp_rr, rp_sv, rp_rv, rp_bal, rp_bal_r, rp_v, rp_v_r, rp_date, rp_dater,
 		},
 		challenge: challenge,
 	}), s

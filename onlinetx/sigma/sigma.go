@@ -36,24 +36,16 @@ func (c CommitMent) Commitmuladd(params1 CommitParams, params2 CommitParams, g1 
 	r2 := params2.r
 
 	var commit curve.PointAffine
-	var tmp1 curve.PointAffine
-	tmp1.ScalarMultiplication(&g1, r1)
-	var tmp2 curve.PointAffine
-	tmp2.ScalarMultiplication(&g2, r2)
-	commit.Add(&tmp1, &tmp2)
+	commit.Add(new(curve.PointAffine).ScalarMultiplication(&g1, r1), new(curve.PointAffine).ScalarMultiplication(&g2, r2))
 
 	return CommitMent{Commit: commit}
 }
 func (c CommitMent) CommitencValid(tb CommitParams, tr CommitParams, pk util.Publickey, h curve.PointAffine, g curve.PointAffine) []curve.PointAffine {
-	var plain curve.PointAffine
-	plain.ScalarMultiplication(&g, tb.r)
-	Cipher := pk.Encrypt(&plain, tr.r, h)
+	Cipher := pk.Encrypt(new(curve.PointAffine).ScalarMultiplication(&g, tb.r), tr.r, h)
 	return Cipher
 }
 func (r Response) Response(params CommitParams, challenge big.Int, witness *big.Int) Response {
-	var _res big.Int
-	_res.Mul(&challenge, witness)
 	var res big.Int
-	res.Add(params.r, &_res)
+	res.Add(params.r, new(big.Int).Mul(&challenge, witness))
 	return Response{Rp: res}
 }

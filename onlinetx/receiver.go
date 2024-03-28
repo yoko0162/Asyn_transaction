@@ -17,18 +17,23 @@ import (
 )
 
 type receiver struct {
-	pk         curve.PointAffine
-	dacc       offlinetx.DeriveAccount
-	v          big.Int       //from sender
-	beta       *big.Int      //from sender
-	r_txr      *big.Int      //from sender
-	txr        transactionTX //from central bank
-	bal        big.Int
-	apk        util.Publickey
-	r_bal      *big.Int
-	cipher_bal []curve.PointAffine
-	_trans     curve.PointAffine
-	h          curve.PointAffine
+	pk          curve.PointAffine
+	dacc        offlinetx.DeriveAccount
+	v           big.Int       //from sender
+	beta        *big.Int      //from sender
+	r_txr       *big.Int      //from sender
+	txr         transactionTX //from central bank
+	bal         big.Int
+	apk         util.Publickey
+	r_bal       *big.Int
+	cipher_bal  []curve.PointAffine
+	_trans      curve.PointAffine
+	h           curve.PointAffine
+	dateg       curve.PointAffine
+	dateh       curve.PointAffine
+	commentdate curve.PointAffine
+	commentr    *big.Int
+	date        *big.Int
 }
 
 func accAggregation(tx transactionTX, dacc offlinetx.DeriveAccount) []curve.PointAffine {
@@ -54,6 +59,11 @@ func (r receiver) execution(params *twistededwards.CurveParams, s sender, o offl
 	r.txr = s.txr
 	r.dacc = o.Deriveacc
 	r.bal = o.Bal
+	r.dateg = o.CommentG
+	r.dateh = o.CommentH
+	r.commentdate = *o.Comment
+	r.commentr = o.Commentr
+	r.date = o.Date
 
 	rb, _ := rand.Int(rand.Reader, params.Order)
 	r.r_bal = rb
@@ -99,9 +109,13 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 	para_h := commit.ParamsGen(params)
 	para_g0 := commit.ParamsGen(params)
 	para_g1 := commit.ParamsGen(params)
+	para_date := commit.ParamsGen(params)
+	para_dater := commit.ParamsGen(params)
 
 	para_bal := commit.ParamsGen(params)
 	para_bal_r := commit.ParamsGen(params)
+
+	commit_date := commit.Commitmuladd(para_date, para_dater, r.dateg, r.dateh)
 
 	commit_h := commit.Commitmul(para_h, &r.dacc.H)
 	commit_g0g1 := commit.Commitmuladd(para_g0, para_g1, r.dacc.G0, r.dacc.G1)
@@ -122,6 +136,8 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 	data = append(data, commit_bal[1].Marshal()...)
 	data = append(data, acc[0].Marshal()...)
 	data = append(data, acc[1].Marshal()...)
+	data = append(data, commit_date.Commit.Marshal()...)
+	data = append(data, r.commentdate.Marshal()...)
 
 	hash.Write(data)
 	_challenge := hash.Sum(nil)
@@ -139,19 +155,24 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 	var rp_bal_r sigma.Response
 	rp_bal_r = rp_bal_r.Response(para_bal_r, challenge, r.r_bal)
 
+	var rp_date sigma.Response
+	rp_date = rp_date.Response(para_date, challenge, r.date)
+	var rp_dater sigma.Response
+	rp_dater = rp_dater.Response(para_dater, challenge, r.commentr)
+
 	endtime := time.Now()
 
 	fmt.Println("sigma----generate commitment,challenge,response cost:", endtime.Sub(starttime))
 
 	return (sigmaProof{
 		commit: []sigma.CommitMent{
-			commit_g0g1pk, commit_h,
+			commit_g0g1pk, commit_h, commit_date,
 		},
 		commitenc: [][]curve.PointAffine{
 			commit_bal,
 		},
 		response: []sigma.Response{
-			rp_h, rp_g0, rp_g1, rp_bal, rp_bal_r,
+			rp_h, rp_g0, rp_g1, rp_bal, rp_bal_r, rp_date, rp_dater,
 		},
 		challenge: challenge,
 	}), r
