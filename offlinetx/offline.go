@@ -5,6 +5,8 @@ import (
 	"Asyn_CBDC/util"
 	"crypto/rand"
 	"math/big"
+	mathrand "math/rand"
+	"time"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	ecctedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
@@ -18,14 +20,14 @@ type PrimitiveAccount struct {
 	G0      curve.PointAffine
 	Tracesk util.Privatekey
 	Tracepk util.Publickey
-	Delta   big.Int
+	Delta   *big.Int
 	G1      curve.PointAffine
 	H       curve.PointAffine
-	Bal     big.Int
+	Bal     *big.Int
 	Sk      util.Privatekey
 	Pk      util.Publickey
 	R       *big.Int
-	Acc     []curve.PointAffine
+	Acc     []*curve.PointAffine
 }
 
 type DeriveKeypair struct {
@@ -38,43 +40,51 @@ type DeriveAccount struct {
 	G0      curve.PointAffine
 	G1      curve.PointAffine
 	H       curve.PointAffine
-	Delta   big.Int
-	Bal     big.Int
+	Delta   *big.Int
+	Bal     *big.Int
 	Keypair DeriveKeypair
 	R       *big.Int
-	Acc     []curve.PointAffine
+	Acc     []*curve.PointAffine
 }
 
 type Offline struct {
-	Signature []byte
-	Sigpk     signature.PublicKey
-	Oldseq    big.Int
-	Newseq    big.Int
-	G0        curve.PointAffine
-	Bal       big.Int
-	Tracesk   util.Privatekey
-	Tracepk   util.Publickey
-	Delta     big.Int
-	G1        curve.PointAffine
-	H         curve.PointAffine
-	Sk        util.Privatekey
-	Pk        util.Publickey
-	OldAcc    []curve.PointAffine
-	Deriveacc DeriveAccount
-	Ar        *big.Int
-	Apk       util.Publickey
-	CipherTk  []curve.PointAffine
+	Signature     []byte
+	Sigpk         signature.PublicKey
+	Oldseq        *big.Int
+	Newseq        *big.Int
+	G0            curve.PointAffine
+	Bal           *big.Int
+	Tracesk       util.Privatekey
+	Tracepk       util.Publickey
+	Delta         *big.Int
+	G1            curve.PointAffine
+	H             curve.PointAffine
+	Sk            util.Privatekey
+	Pk            util.Publickey
+	OldAcc        []*curve.PointAffine
+	Deriveacc     DeriveAccount
+	Ar            *big.Int
+	Apk           util.Publickey
+	CipherTk      []*curve.PointAffine
+	A             *big.Int
+	Aux           *curve.PointAffine
+	Date          *big.Int
+	DateSignature []byte
+	Comment       *curve.PointAffine
+	Commentr      *big.Int
+	CommentG      curve.PointAffine
+	CommentH      curve.PointAffine
 }
 
 func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, curveid ecctedwards.ID) Offline {
+	mathrand.Seed(time.Now().UnixNano())
 	//=========================primitive acc ==============================
 	modulus := params.Order
-	var oldseq big.Int
-	oldseq.Sub(modulus, big.NewInt(3))
+
+	oldseq := new(big.Int).Sub(modulus, big.NewInt(3))
 	o.Oldseq = oldseq
 
-	var balance big.Int
-	balance.SetString("200", 10)
+	balance := new(big.Int).Sub(modulus, big.NewInt(200))
 
 	var testacc PrimitiveAccount
 	testacc = testacc.GetAccount(params, hash, balance, oldseq)
@@ -101,12 +111,18 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	sigprivateKey, _ := eddsa.New(curveid, rand.Reader)
 	sigpublicKey := sigprivateKey.Public()
 	o.Sigpk = sigpublicKey
-	signature := util.SignAcc(sigprivateKey, _msg, hash)
+	signature := util.Sign(sigprivateKey, _msg, hash)
 	o.Signature = signature
 
+	date := new(big.Int).Sub(modulus, big.NewInt(int64(10)))
+	o.Date = date
+	var datemsg []byte
+	datemsg = append(datemsg, o.Date.Bytes()...)
+	datesignature := util.Sign(sigprivateKey, datemsg, hash)
+	o.DateSignature = datesignature
+
 	//DAcc
-	var newseq big.Int
-	newseq.Sub(modulus, big.NewInt(4))
+	newseq := new(big.Int).Sub(modulus, big.NewInt(4))
 	o.Newseq = newseq
 	var Dacc DeriveAccount
 	Dacc = Dacc.DaccountGen(params, hash, newseq, testacc)
@@ -118,22 +134,38 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	o.H = Dacc.H
 
 	//C_TK
-	_aprivatekey, _ := rand.Int(rand.Reader, params.Order)
+	randint := mathrand.Intn(11) + 10
+	_aprivatekey := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	var _ah curve.PointAffine
 	_ah.X.SetBigInt(params.Base[0])
 	_ah.Y.SetBigInt(params.Base[1])
-	var _apublickey curve.PointAffine
-	_apublickey.ScalarMultiplication(&_ah, _aprivatekey)
+
+	_apublickey := new(curve.PointAffine).ScalarMultiplication(&_ah, _aprivatekey)
 	o.Apk = util.Publickey{Pk: _apublickey}
 
-	ar, _ := rand.Int(rand.Reader, params.Order)
+	randint = mathrand.Intn(11) + 10
+	ar := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.Ar = ar
-	cipherTK := o.Apk.Encrypt(testacc.Tracepk.Pk, ar, _ah)
+	_cipherTK := o.Apk.Encrypt(testacc.Tracepk.Pk, ar, &_ah)
+	randint = mathrand.Intn(11) + 10
+	a := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
+	o.A = a
+	cipherTK := util.Regulation_TK(_cipherTK, a)
 	o.CipherTk = cipherTK
+	o.Aux = new(curve.PointAffine).ScalarMultiplication(&_ah, a)
+
+	randint = mathrand.Intn(11) + 10
+	commr := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
+	o.Commentr = commr
+	o.CommentG.X.SetBigInt(params.Base[0])
+	o.CommentG.Y.SetBigInt(params.Base[1])
+	o.CommentH.X.SetBigInt(params.Base[0])
+	o.CommentH.Y.SetBigInt(params.Base[1])
+	o.Comment = util.Pedersen_date(&o.CommentG, &o.CommentH, o.Date, o.Commentr)
 	return o
 }
 
-func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFunc hash.Hash, balance big.Int, seq big.Int) PrimitiveAccount {
+func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFunc hash.Hash, balance, seq *big.Int) PrimitiveAccount {
 	t.Bal = balance
 
 	var enroll enroll.Enroll
@@ -145,8 +177,7 @@ func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFun
 	_tacSk := t.Tracesk.Sk
 	_data3 := _tacSk.Bytes()
 	data3 := append(_data3, seq.Bytes()...)
-	var delta_3 big.Int
-	delta_3 = util.Calculate_delta(data3, hashFunc)
+	delta_3 := util.Calculate_delta(data3, hashFunc)
 
 	t.Delta = delta_3
 	t.Bal = balance
@@ -155,12 +186,8 @@ func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFun
 	t.G0 = enroll.G0
 	_g0 := t.G0
 
-	var _g1delta3 curve.PointAffine
-	_g1delta3.ScalarMultiplication(&_g1, &t.Delta)
-	var _g0bal curve.PointAffine
-	_g0bal.ScalarMultiplication(&_g0, &balance)
-	var plaintext curve.PointAffine
-	plaintext.Add(&_g1delta3, &_g0bal)
+	plaintext := new(curve.PointAffine).Add(
+		new(curve.PointAffine).ScalarMultiplication(&_g1, t.Delta), new(curve.PointAffine).ScalarMultiplication(&_g0, balance))
 
 	t.H = enroll.H
 	t.Sk = enroll.Sk
@@ -173,7 +200,7 @@ func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFun
 
 	publickey := util.Publickey{Pk: _publickey}
 
-	t.Acc = publickey.Encrypt(plaintext, r, _h)
+	t.Acc = publickey.Encrypt(plaintext, r, &_h)
 
 	return t
 }
@@ -181,22 +208,19 @@ func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFun
 func (d DeriveKeypair) DkeypairGen(order *big.Int, pk util.Publickey, sk util.Privatekey) DeriveKeypair {
 	d.Deriver, _ = rand.Int(rand.Reader, order)
 
-	var dsk big.Int
-	dsk.Mul(d.Deriver, sk.Sk)
-	d.DSk = util.Privatekey{Sk: &dsk}
+	dsk := new(big.Int).Mul(d.Deriver, sk.Sk)
+	d.DSk = util.Privatekey{Sk: dsk}
 
-	var dpk curve.PointAffine
-	dpk.ScalarMultiplication(&pk.Pk, d.Deriver)
+	dpk := new(curve.PointAffine).ScalarMultiplication(pk.Pk, d.Deriver)
 	d.DPk = util.Publickey{Pk: dpk}
 
 	return d
 }
 
-func (d DeriveAccount) DaccountGen(params *twistededwards.CurveParams, hashFunc hash.Hash, seq big.Int, priacc PrimitiveAccount) DeriveAccount {
+func (d DeriveAccount) DaccountGen(params *twistededwards.CurveParams, hashFunc hash.Hash, seq *big.Int, priacc PrimitiveAccount) DeriveAccount {
 	_data4 := priacc.Tracesk.Sk.Bytes()
 	data4 := append(_data4, seq.Bytes()...)
-	var delta_4 big.Int
-	delta_4 = util.Calculate_delta(data4, hashFunc)
+	delta_4 := util.Calculate_delta(data4, hashFunc)
 
 	d.Delta = delta_4
 
@@ -207,18 +231,13 @@ func (d DeriveAccount) DaccountGen(params *twistededwards.CurveParams, hashFunc 
 
 	d.Bal = priacc.Bal
 
-	dr, _ := rand.Int(rand.Reader, params.Order)
+	randint := mathrand.Intn(11) + 10
+	dr := new(big.Int).Sub(params.Order, big.NewInt(int64(randint)))
 	d.R = dr
 
-	var _g1delta4 curve.PointAffine
-	_g1delta4.ScalarMultiplication(&priacc.G1, &delta_4)
-	var _g1delta3 curve.PointAffine
-	_g1delta3.ScalarMultiplication(&priacc.G1, &priacc.Delta)
-	g0bal := priacc.Sk.Decryptacc(priacc.Acc, _g1delta3)
-	var dplaintext curve.PointAffine
-	dplaintext.Add(&_g1delta4, &g0bal)
-
-	dacccipher := derivekey.DPk.Encrypt(dplaintext, dr, priacc.H)
+	g0bal := priacc.Sk.Decryptacc(priacc.Acc, new(curve.PointAffine).ScalarMultiplication(&priacc.G1, priacc.Delta))
+	dplaintext := new(curve.PointAffine).Add(g0bal, new(curve.PointAffine).ScalarMultiplication(&priacc.G1, delta_4))
+	dacccipher := derivekey.DPk.Encrypt(dplaintext, dr, &priacc.H)
 	d.Acc = dacccipher
 
 	d.G0 = priacc.G0

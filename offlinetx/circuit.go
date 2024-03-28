@@ -27,6 +27,12 @@ type offlineCircuit struct {
 	ExpectedCTacPk     [2]twistededwards.Point `gnark:",public"`
 	PublicKeyA         twistededwards.Point    `gnark:",public"`
 	RandomnessA        frontend.Variable
+	A                  frontend.Variable
+	ExpectedAux        twistededwards.Point `gnark:",public"`
+	Comment            twistededwards.Point `gnark:",public"`
+	Date               frontend.Variable
+	DateSignature      cir_eddsa.Signature
+	Commentr           frontend.Variable
 }
 
 func (circuit *offlineCircuit) Define(api frontend.API) error {
@@ -38,7 +44,8 @@ func (circuit *offlineCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	hashf, err := mimc.NewMiMC(api)
+	hashf1, err := mimc.NewMiMC(api)
+	hashf2, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
@@ -46,15 +53,20 @@ func (circuit *offlineCircuit) Define(api frontend.API) error {
 	msg := circuit.Acc.A.X
 
 	// verify the signature in the cs
-	result_sig := cir_eddsa.Verify(curve, circuit.Signature, msg, circuit.SigPublicKey, &hashf)
+	result_sig := cir_eddsa.Verify(curve, circuit.Signature, msg, circuit.SigPublicKey, &hashf1)
 	if result_sig != nil {
+		return err
+	}
+	msg = circuit.Date
+	date_sig := cir_eddsa.Verify(curve, circuit.DateSignature, msg, circuit.SigPublicKey, &hashf2)
+	if date_sig != nil {
 		return err
 	}
 
 	//delta0=mimc(tk,seq)
-	mimc0, _ := mimc.NewMiMC(api)
-	mimc0.Write(circuit.TacSk, circuit.Seq)
-	delta_0 := mimc0.Sum()
+	mimc, _ := mimc.NewMiMC(api)
+	mimc.Write(circuit.TacSk, circuit.Seq)
+	delta_0 := mimc.Sum()
 	api.AssertIsEqual(delta_0, circuit.ExpectedDelta)
 
 	//g0bal,Dpk,delta1
@@ -68,9 +80,9 @@ func (circuit *offlineCircuit) Define(api frontend.API) error {
 	dpublickey = curve.ScalarMul(circuit.PublicKey, circuit.Alpha)
 	api.AssertIsEqual(dpublickey.X, circuit.ExpectedDPublicKey.X)
 
-	mimc1, _ := mimc.NewMiMC(api)
-	mimc1.Write(circuit.TacSk, circuit.Seq1)
-	delta_1 := mimc1.Sum()
+	mimc.Reset()
+	mimc.Write(circuit.TacSk, circuit.Seq1)
+	delta_1 := mimc.Sum()
 	g1delta1 := curve.ScalarMul(g1, delta_1)
 
 	plaintext := curve.Add(g0bal, g1delta1)
@@ -90,10 +102,17 @@ func (circuit *offlineCircuit) Define(api frontend.API) error {
 	_ah, _ := twistededwards.GetCurveParams(curvepara)
 
 	cipher := util.EncryptTK(curve, tacpk, circuit.PublicKeyA, circuit.RandomnessA, _ah)
-	ac1 := cipher[0]
-	ac2 := cipher[1]
-	api.AssertIsEqual(ac1.X, circuit.ExpectedCTacPk[0].X)
-	api.AssertIsEqual(ac2.X, circuit.ExpectedCTacPk[1].X)
+
+	reginfo, aux := util.RegulationTK(curve, _ah, cipher, circuit.A)
+
+	api.AssertIsEqual(reginfo[0].X, circuit.ExpectedCTacPk[0].X)
+	api.AssertIsEqual(reginfo[1].X, circuit.ExpectedCTacPk[1].X)
+	api.AssertIsEqual(aux.X, circuit.ExpectedAux.X)
+
+	_G, _ := twistededwards.GetCurveParams(curvepara)
+	_H, _ := twistededwards.GetCurveParams(curvepara)
+	comm := util.Pedersen(curve, _G, _H, circuit.Date, circuit.Commentr)
+	api.AssertIsEqual(comm.X, circuit.Comment.X)
 
 	return nil
 }

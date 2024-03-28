@@ -35,7 +35,7 @@ func T_OfflineTx() {
 		B: twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
 	}
 	assignment.Acc = acc
-	assignment.TacSk = *offline.Tracesk.Sk
+	assignment.TacSk = offline.Tracesk.Sk
 	assignment.Seq = offline.Oldseq
 	assignment.Seq1 = offline.Newseq
 	assignment.ExpectedDelta = offline.Delta
@@ -62,10 +62,22 @@ func T_OfflineTx() {
 	assignment.ExpectedCTacPk = ctacpk
 	assignment.PublicKeyA = twistededwards.Point{X: offline.Apk.Pk.X, Y: offline.Apk.Pk.Y}
 	assignment.RandomnessA = offline.Ar
+	assignment.A = offline.A
+	assignment.ExpectedAux = twistededwards.Point{
+		X: offline.Aux.X,
+		Y: offline.Aux.Y,
+	}
+	assignment.Date = offline.Date
+	assignment.Comment = twistededwards.Point{
+		X: offline.Comment.X,
+		Y: offline.Comment.Y,
+	}
+	assignment.Commentr = offline.Commentr
 
 	_sigpublicKey := offline.Sigpk.Bytes()
 	assignment.SigPublicKey.Assign(curveid, _sigpublicKey[:32])
 	assignment.Signature.Assign(curveid, offline.Signature)
+	assignment.DateSignature.Assign(curveid, offline.DateSignature)
 
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	publicWitness, err := witness.Public()
