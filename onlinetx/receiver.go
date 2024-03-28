@@ -68,7 +68,7 @@ func (r receiver) execution(params *twistededwards.CurveParams, s sender, o offl
 	h.X.SetBigInt(params.Base[0])
 	h.Y.SetBigInt(params.Base[1])
 	r.h = h
-	r.cipher_bal = r.apk.Encrypt(aplain_bal, r.r_bal, r.h)
+	r.cipher_bal = r.apk.Encrypt(&aplain_bal, r.r_bal, r.h)
 	return r
 }
 
@@ -103,9 +103,9 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 	para_bal := commit.ParamsGen(params)
 	para_bal_r := commit.ParamsGen(params)
 
-	commit_h := commit.Commitmul(para_h, r.dacc.H)
+	commit_h := commit.Commitmul(para_h, &r.dacc.H)
 	commit_g0g1 := commit.Commitmuladd(para_g0, para_g1, r.dacc.G0, r.dacc.G1)
-	commit_pk := commit.Commitmul(para_h, pk)
+	commit_pk := commit.Commitmul(para_h, &pk)
 	var _commit_g0g1pk curve.PointAffine
 	_commit_g0g1pk.Add(&commit_g0g1.Commit, &commit_pk.Commit)
 	commit_g0g1pk := sigma.CommitMent{Commit: _commit_g0g1pk}
@@ -133,7 +133,7 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 	var rp_g0 sigma.Response
 	rp_g0 = rp_g0.Response(para_g0, challenge, bv)
 	var rp_g1 sigma.Response
-	rp_g1 = rp_g1.Response(para_g1, challenge, &delta)
+	rp_g1 = rp_g1.Response(para_g1, challenge, delta)
 	var rp_bal sigma.Response
 	rp_bal = rp_bal.Response(para_bal, challenge, &r.bal)
 	var rp_bal_r sigma.Response

@@ -24,7 +24,7 @@ type Enroll struct {
 	Sk      util.Privatekey
 	Pk      util.Publickey
 	R       *big.Int
-	Acc     []*curve.PointAffine
+	Acc     []curve.PointAffine
 }
 
 func (enroll Enroll) Init(params *twistededwards.CurveParams, hash hash.Hash) Enroll {
@@ -40,7 +40,7 @@ func (enroll Enroll) Init(params *twistededwards.CurveParams, hash hash.Hash) En
 	_TK := util.Calculate_TK(&enroll.G2, tk)
 
 	enroll.Tracesk = util.Privatekey{Sk: tk}
-	enroll.Tracepk = util.Publickey{Pk: _TK}
+	enroll.Tracepk = util.Publickey{Pk: *_TK}
 
 	modulus := params.Order
 	seq := new(big.Int).Sub(modulus, big.NewInt(1))
@@ -64,16 +64,16 @@ func (enroll Enroll) Init(params *twistededwards.CurveParams, hash hash.Hash) En
 	enroll.H.Y.SetBigInt(params.Base[1])
 
 	_pk := new(curve.PointAffine).ScalarMultiplication(&enroll.H, _sk)
-	enroll.Pk = util.Publickey{Pk: _pk}
+	enroll.Pk = util.Publickey{Pk: *_pk}
 	randint = mathrand.Intn(11) + 10
 	r := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	enroll.R = r
 
 	plain := new(curve.PointAffine).ScalarMultiplication(&enroll.G1, delta)
 
-	pk := util.Publickey{Pk: _pk}
+	pk := util.Publickey{Pk: *_pk}
 
-	acc := pk.Encrypt(plain, r, &enroll.H)
+	acc := pk.Encrypt(plain, r, enroll.H)
 	enroll.Acc = acc
 
 	return enroll

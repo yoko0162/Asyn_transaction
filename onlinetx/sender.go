@@ -51,7 +51,7 @@ func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_
 	var plain curve.PointAffine
 	plain.ScalarMultiplication(&s.dacc.G0, &s.v)
 
-	_txs := s.dacc.Keypair.DPk.Encrypt(plain, s.r_txs, s.dacc.H)
+	_txs := s.dacc.Keypair.DPk.Encrypt(&plain, s.r_txs, s.dacc.H)
 	s.txs = transactionTX{
 		A: _txs[0],
 		B: _txs[1],
@@ -59,11 +59,12 @@ func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_
 
 	beta, _ := rand.Int(rand.Reader, params.Order)
 	s.beta = beta
-	var _pkr curve.PointAffine
-	_pkr.ScalarMultiplication(&r_pk.Pk, beta)
-	s.r_derivepk = util.Publickey{Pk: _pkr}
+	//var _pkr curve.PointAffine
+	//_pkr.ScalarMultiplication(r_pk.Pk, beta)
+	_pkr := new(curve.PointAffine).ScalarMultiplication(&r_pk.Pk, beta)
+	s.r_derivepk = util.Publickey{Pk: *_pkr}
 
-	_txr := s.r_derivepk.Encrypt(plain, s.r_txr, s.dacc.H)
+	_txr := s.r_derivepk.Encrypt(&plain, s.r_txr, s.dacc.H)
 	s.txr = transactionTX{
 		A: _txr[0],
 		B: _txr[1],
@@ -81,8 +82,8 @@ func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_
 	h.X.SetBigInt(params.Base[0])
 	h.Y.SetBigInt(params.Base[1])
 	s.h = h
-	s.cipher_bal = s.apk.Encrypt(aplain_bal, s.r_bal, s.h)
-	s.cipher_v = s.apk.Encrypt(aplain_v, s.r_v, s.h)
+	s.cipher_bal = s.apk.Encrypt(&aplain_bal, s.r_bal, s.h)
+	s.cipher_v = s.apk.Encrypt(&aplain_v, s.r_v, s.h)
 	return s
 }
 
@@ -92,7 +93,7 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 	var receiver_bal big.Int
 	receiver_bal.SetString("200", 10)
 	var receiver offlinetx.PrimitiveAccount
-	receiver = receiver.GetAccount(params, hashFunc, receiver_bal, *big.NewInt(1))
+	receiver = receiver.GetAccount(params, hashFunc, receiver_bal, big.NewInt(1))
 	r_pk := receiver.Pk
 
 	/* */
@@ -121,8 +122,8 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 	para_v := commit.ParamsGen(params)
 	para_v_r := commit.ParamsGen(params)
 
-	commit_sh := commit.Commitmul(para_sh, s.dacc.H)
-	commit_rh := commit.Commitmul(para_rh, s.dacc.H)
+	commit_sh := commit.Commitmul(para_sh, &s.dacc.H)
+	commit_rh := commit.Commitmul(para_rh, &s.dacc.H)
 	commit_s := commit.Commitmuladd(para_sh, para_s, s.dacc.Keypair.DPk.Pk, s.dacc.G0)
 	commit_r := commit.Commitmuladd(para_rh, para_r, s.r_derivepk.Pk, s.dacc.G0)
 

@@ -25,10 +25,10 @@ func (c CommitMent) ParamsGen(params *twistededwards.CurveParams) CommitParams {
 	r, _ := rand.Int(rand.Reader, params.Order)
 	return CommitParams{r: r}
 }
-func (c CommitMent) Commitmul(params CommitParams, g curve.PointAffine) CommitMent {
+func (c CommitMent) Commitmul(params CommitParams, g *curve.PointAffine) CommitMent {
 	r := params.r
 	var commit curve.PointAffine
-	commit.ScalarMultiplication(&g, r)
+	commit.ScalarMultiplication(g, r)
 	return CommitMent{Commit: commit}
 }
 func (c CommitMent) Commitmuladd(params1 CommitParams, params2 CommitParams, g1 curve.PointAffine, g2 curve.PointAffine) CommitMent {
@@ -47,7 +47,7 @@ func (c CommitMent) Commitmuladd(params1 CommitParams, params2 CommitParams, g1 
 func (c CommitMent) CommitencValid(tb CommitParams, tr CommitParams, pk util.Publickey, h curve.PointAffine, g curve.PointAffine) []curve.PointAffine {
 	var plain curve.PointAffine
 	plain.ScalarMultiplication(&g, tb.r)
-	Cipher := pk.Encrypt(plain, tr.r, h)
+	Cipher := pk.Encrypt(&plain, tr.r, h)
 	return Cipher
 }
 func (r Response) Response(params CommitParams, challenge big.Int, witness *big.Int) Response {

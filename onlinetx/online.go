@@ -124,7 +124,7 @@ func verifySenderSigmaProtocol(s sender, sigmaproof sigmaProof) {
 
 	var plain_rp_bal curve.PointAffine
 	plain_rp_bal.ScalarMultiplication(&s._trans, &rp_bal.Rp)
-	cipher_rp_bal := s.apk.Encrypt(plain_rp_bal, &rp_bal_r.Rp, s.h)
+	cipher_rp_bal := s.apk.Encrypt(&plain_rp_bal, &rp_bal_r.Rp, s.h)
 	var _chal_bal1 curve.PointAffine
 	_chal_bal1.ScalarMultiplication(&s.cipher_bal[0], &challenge)
 	var commit_bal1_chal_bal1 curve.PointAffine
@@ -136,7 +136,7 @@ func verifySenderSigmaProtocol(s sender, sigmaproof sigmaProof) {
 
 	var plain_rp_v curve.PointAffine
 	plain_rp_v.ScalarMultiplication(&s._trans, &rp_v.Rp)
-	cipher_rp_v := s.apk.Encrypt(plain_rp_v, &rp_v_r.Rp, s.h)
+	cipher_rp_v := s.apk.Encrypt(&plain_rp_v, &rp_v_r.Rp, s.h)
 	var _chal_v1 curve.PointAffine
 	_chal_v1.ScalarMultiplication(&s.cipher_v[0], &challenge)
 	var commit_v1_chal_v1 curve.PointAffine
@@ -199,7 +199,7 @@ func verifyReceiverSigmaProtocol(r receiver, sigmaproof sigmaProof) {
 
 	var plain_rp_bal curve.PointAffine
 	plain_rp_bal.ScalarMultiplication(&r._trans, &rp_bal.Rp)
-	cipher_rp_bal := r.apk.Encrypt(plain_rp_bal, &rp_bal_r.Rp, r.h)
+	cipher_rp_bal := r.apk.Encrypt(&plain_rp_bal, &rp_bal_r.Rp, r.h)
 	var _chal_bal1 curve.PointAffine
 	_chal_bal1.ScalarMultiplication(&r.cipher_bal[0], &challenge)
 	var commit_bal1_chal_bal1 curve.PointAffine

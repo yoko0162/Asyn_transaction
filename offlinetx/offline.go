@@ -23,11 +23,11 @@ type PrimitiveAccount struct {
 	Delta   *big.Int
 	G1      curve.PointAffine
 	H       curve.PointAffine
-	Bal     *big.Int
+	Bal     big.Int
 	Sk      util.Privatekey
 	Pk      util.Publickey
 	R       *big.Int
-	Acc     []*curve.PointAffine
+	Acc     []curve.PointAffine
 }
 
 type DeriveKeypair struct {
@@ -41,10 +41,10 @@ type DeriveAccount struct {
 	G1      curve.PointAffine
 	H       curve.PointAffine
 	Delta   *big.Int
-	Bal     *big.Int
+	Bal     big.Int
 	Keypair DeriveKeypair
 	R       *big.Int
-	Acc     []*curve.PointAffine
+	Acc     []curve.PointAffine
 }
 
 type Offline struct {
@@ -53,7 +53,7 @@ type Offline struct {
 	Oldseq        *big.Int
 	Newseq        *big.Int
 	G0            curve.PointAffine
-	Bal           *big.Int
+	Bal           big.Int
 	Tracesk       util.Privatekey
 	Tracepk       util.Publickey
 	Delta         *big.Int
@@ -61,11 +61,11 @@ type Offline struct {
 	H             curve.PointAffine
 	Sk            util.Privatekey
 	Pk            util.Publickey
-	OldAcc        []*curve.PointAffine
+	OldAcc        []curve.PointAffine
 	Deriveacc     DeriveAccount
 	Ar            *big.Int
 	Apk           util.Publickey
-	CipherTk      []*curve.PointAffine
+	CipherTk      []curve.PointAffine
 	A             *big.Int
 	Aux           *curve.PointAffine
 	Date          *big.Int
@@ -84,7 +84,8 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	oldseq := new(big.Int).Sub(modulus, big.NewInt(3))
 	o.Oldseq = oldseq
 
-	balance := new(big.Int).Sub(modulus, big.NewInt(200))
+	var balance big.Int
+	balance.SetString("200", 10)
 
 	var testacc PrimitiveAccount
 	testacc = testacc.GetAccount(params, hash, balance, oldseq)
@@ -141,12 +142,12 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	_ah.Y.SetBigInt(params.Base[1])
 
 	_apublickey := new(curve.PointAffine).ScalarMultiplication(&_ah, _aprivatekey)
-	o.Apk = util.Publickey{Pk: _apublickey}
+	o.Apk = util.Publickey{Pk: *_apublickey}
 
 	randint = mathrand.Intn(11) + 10
 	ar := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.Ar = ar
-	_cipherTK := o.Apk.Encrypt(testacc.Tracepk.Pk, ar, &_ah)
+	_cipherTK := o.Apk.Encrypt(&testacc.Tracepk.Pk, ar, _ah)
 	randint = mathrand.Intn(11) + 10
 	a := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.A = a
@@ -165,7 +166,7 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	return o
 }
 
-func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFunc hash.Hash, balance, seq *big.Int) PrimitiveAccount {
+func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFunc hash.Hash, balance big.Int, seq *big.Int) PrimitiveAccount {
 	t.Bal = balance
 
 	var enroll enroll.Enroll
@@ -187,7 +188,7 @@ func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFun
 	_g0 := t.G0
 
 	plaintext := new(curve.PointAffine).Add(
-		new(curve.PointAffine).ScalarMultiplication(&_g1, t.Delta), new(curve.PointAffine).ScalarMultiplication(&_g0, balance))
+		new(curve.PointAffine).ScalarMultiplication(&_g1, t.Delta), new(curve.PointAffine).ScalarMultiplication(&_g0, &balance))
 
 	t.H = enroll.H
 	t.Sk = enroll.Sk
@@ -200,7 +201,7 @@ func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFun
 
 	publickey := util.Publickey{Pk: _publickey}
 
-	t.Acc = publickey.Encrypt(plaintext, r, &_h)
+	t.Acc = publickey.Encrypt(plaintext, r, _h)
 
 	return t
 }
@@ -211,8 +212,8 @@ func (d DeriveKeypair) DkeypairGen(order *big.Int, pk util.Publickey, sk util.Pr
 	dsk := new(big.Int).Mul(d.Deriver, sk.Sk)
 	d.DSk = util.Privatekey{Sk: dsk}
 
-	dpk := new(curve.PointAffine).ScalarMultiplication(pk.Pk, d.Deriver)
-	d.DPk = util.Publickey{Pk: dpk}
+	dpk := new(curve.PointAffine).ScalarMultiplication(&pk.Pk, d.Deriver)
+	d.DPk = util.Publickey{Pk: *dpk}
 
 	return d
 }
@@ -237,7 +238,7 @@ func (d DeriveAccount) DaccountGen(params *twistededwards.CurveParams, hashFunc 
 
 	g0bal := priacc.Sk.Decryptacc(priacc.Acc, new(curve.PointAffine).ScalarMultiplication(&priacc.G1, priacc.Delta))
 	dplaintext := new(curve.PointAffine).Add(g0bal, new(curve.PointAffine).ScalarMultiplication(&priacc.G1, delta_4))
-	dacccipher := derivekey.DPk.Encrypt(dplaintext, dr, &priacc.H)
+	dacccipher := derivekey.DPk.Encrypt(dplaintext, dr, priacc.H)
 	d.Acc = dacccipher
 
 	d.G0 = priacc.G0
