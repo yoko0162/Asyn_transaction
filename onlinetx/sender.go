@@ -6,7 +6,6 @@ import (
 	"Asyn_CBDC/onlinetx/sigma"
 	"Asyn_CBDC/util"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -54,14 +53,15 @@ func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_
 	s.date = o.Date
 
 	rb, _ := rand.Int(rand.Reader, params.Order)
+	rb = rb.Add(rb, big.NewInt(int64(10))).Mod(rb, params.Order)
 	rv, _ := rand.Int(rand.Reader, params.Order)
+	rv = rv.Add(rv, big.NewInt(int64(10))).Mod(rv, params.Order)
 	s.r_bal = rb
 	s.r_v = rv
 
-	var plain curve.PointAffine
-	plain.ScalarMultiplication(&s.dacc.G0, &s.v)
+	plain := new(curve.PointAffine).ScalarMultiplication(&s.dacc.G0, &s.v)
 
-	_txs := s.dacc.Keypair.DPk.Encrypt(&plain, s.r_txs, s.dacc.H)
+	_txs := s.dacc.Keypair.DPk.Encrypt(plain, s.r_txs, s.dacc.H)
 	s.txs = transactionTX{
 		A: _txs[0],
 		B: _txs[1],
@@ -69,12 +69,10 @@ func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_
 
 	beta, _ := rand.Int(rand.Reader, params.Order)
 	s.beta = beta
-	//var _pkr curve.PointAffine
-	//_pkr.ScalarMultiplication(r_pk.Pk, beta)
 	_pkr := new(curve.PointAffine).ScalarMultiplication(&r_pk.Pk, beta)
 	s.r_derivepk = util.Publickey{Pk: *_pkr}
 
-	_txr := s.r_derivepk.Encrypt(&plain, s.r_txr, s.dacc.H)
+	_txr := s.r_derivepk.Encrypt(plain, s.r_txr, s.dacc.H)
 	s.txr = transactionTX{
 		A: _txr[0],
 		B: _txr[1],
@@ -84,20 +82,18 @@ func (s sender) execution(params *twistededwards.CurveParams, r_txr *big.Int, r_
 	_trans.X.SetBigInt(params.Base[0])
 	_trans.Y.SetBigInt(params.Base[1])
 	s._trans = _trans
-	var aplain_bal curve.PointAffine
-	aplain_bal.ScalarMultiplication(&_trans, &s.bal)
-	var aplain_v curve.PointAffine
-	aplain_v.ScalarMultiplication(&_trans, &s.v)
+	aplain_bal := new(curve.PointAffine).ScalarMultiplication(&_trans, &s.bal)
+	aplain_v := new(curve.PointAffine).ScalarMultiplication(&_trans, &s.v)
 	var h curve.PointAffine
 	h.X.SetBigInt(params.Base[0])
 	h.Y.SetBigInt(params.Base[1])
 	s.h = h
-	s.cipher_bal = s.apk.Encrypt(&aplain_bal, s.r_bal, s.h)
-	s.cipher_v = s.apk.Encrypt(&aplain_v, s.r_v, s.h)
+	s.cipher_bal = s.apk.Encrypt(aplain_bal, s.r_bal, s.h)
+	s.cipher_v = s.apk.Encrypt(aplain_v, s.r_v, s.h)
 	return s
 }
 
-func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid ecctedwards.ID) (sigmaProof, sender) {
+func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid ecctedwards.ID) (sigmaProof, sender, time.Duration) {
 	//simulation receiver
 	hashFunc := hash.MIMC_BN254
 	var receiver_bal big.Int
@@ -111,7 +107,9 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 	v.SetString("100", 10)
 
 	r_txr, _ := rand.Int(rand.Reader, params.Order)
+	r_txr = r_txr.Add(r_txr, big.NewInt(int64(10))).Mod(r_txr, params.Order)
 	r_txs, _ := rand.Int(rand.Reader, params.Order)
+	r_txs = r_txs.Add(r_txs, big.NewInt(int64(10))).Mod(r_txs, params.Order)
 
 	var o offlinetx.Offline
 	o = o.Execution(params, hashFunc, curveid)
@@ -190,7 +188,7 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 
 	endtime := time.Now()
 
-	fmt.Println("sigma----generate commitment,challenge,response cost:", endtime.Sub(starttime))
+	//fmt.Println("sigma----generate commitment,challenge,response cost:", endtime.Sub(starttime))
 
 	return (sigmaProof{
 		commit: []sigma.CommitMent{
@@ -204,13 +202,14 @@ func (s sender) sigmaprotocol(params *twistededwards.CurveParams, curveid eccted
 			rp_sr, rp_rr, rp_sv, rp_rv, rp_bal, rp_bal_r, rp_v, rp_v_r, rp_date, rp_dater,
 		},
 		challenge: challenge,
-	}), s
+	}), s, endtime.Sub(starttime)
 }
 
-func (_ sender) zkpProof(params *twistededwards.CurveParams, curveid ecctedwards.ID, frmodulus *big.Int) (sender, sigmaProof, bulletProof, bulletProof) {
+func (_ sender) zkpProof(params *twistededwards.CurveParams, curveid ecctedwards.ID, frmodulus *big.Int) (sender, sigmaProof, bulletProof, bulletProof, bulletProof, bulletProof, int64) {
 	var s sender
 	var sigmaproof sigmaProof
-	sigmaproof, s = s.sigmaprotocol(params, curveid)
+	var t_sigmagen time.Duration
+	sigmaproof, s, t_sigmagen = s.sigmaprotocol(params, curveid)
 	v := s.v
 	bal_v := s.bal.Sub(&s.bal, &s.v)
 
@@ -218,8 +217,19 @@ func (_ sender) zkpProof(params *twistededwards.CurveParams, curveid ecctedwards
 	bpPara = bpPara.ParamsGen()
 
 	var bp1 bulletProof
-	bp1 = bp1.rangeproof(&v, bpPara)
+	var t_bp1 time.Duration
+	bp1, t_bp1 = bp1.rangeproof(&v, bpPara)
 	var bp2 bulletProof
-	bp2 = bp2.rangeproof(bal_v, bpPara)
-	return s, sigmaproof, bp1, bp2
+	var t_bp2 time.Duration
+	bp2, t_bp2 = bp2.rangeproof(bal_v, bpPara)
+	var holding bulletProof
+	var t_holding time.Duration
+	holding, t_holding = holding.rangeproof(big.NewInt(200), bpPara)
+	var date bulletProof
+	var t_date time.Duration
+	date, t_date = date.rangeproof(big.NewInt(200), bpPara)
+
+	var totalzkptime int64
+	totalzkptime = t_sigmagen.Microseconds() + t_bp1.Microseconds() + t_bp2.Microseconds() + t_holding.Microseconds() + t_date.Microseconds()
+	return s, sigmaproof, bp1, bp2, holding, date, totalzkptime
 }

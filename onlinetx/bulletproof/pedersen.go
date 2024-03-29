@@ -23,14 +23,8 @@ func GeneratePoint() curve.G1Affine {
 
 // pedersen: P=v*G+r*H
 func Commit(G curve.G1Affine, H curve.G1Affine, secret *big.Int, blinding *big.Int) curve.G1Affine {
-	var vg curve.G1Affine
-	vg.ScalarMultiplication(&G, secret)
-
-	var rh curve.G1Affine
-	rh.ScalarMultiplication(&H, blinding)
-
 	var res curve.G1Affine
-	res.Add(&vg, &rh)
+	res.Add(new(curve.G1Affine).ScalarMultiplication(&G, secret), new(curve.G1Affine).ScalarMultiplication(&H, blinding))
 
 	return res
 }

@@ -77,7 +77,6 @@ type Offline struct {
 }
 
 func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, curveid ecctedwards.ID) Offline {
-	mathrand.Seed(time.Now().UnixNano())
 	//=========================primitive acc ==============================
 	modulus := params.Order
 
@@ -135,7 +134,8 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	o.H = Dacc.H
 
 	//C_TK
-	randint := mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint := mathrand.Intn(1100) + 10
 	_aprivatekey := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	var _ah curve.PointAffine
 	_ah.X.SetBigInt(params.Base[0])
@@ -144,18 +144,21 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	_apublickey := new(curve.PointAffine).ScalarMultiplication(&_ah, _aprivatekey)
 	o.Apk = util.Publickey{Pk: *_apublickey}
 
-	randint = mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint = mathrand.Intn(1100) + 10
 	ar := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.Ar = ar
 	_cipherTK := o.Apk.Encrypt(&testacc.Tracepk.Pk, ar, _ah)
-	randint = mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint = mathrand.Intn(1100) + 10
 	a := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.A = a
 	cipherTK := util.Regulation_TK(_cipherTK, a)
 	o.CipherTk = cipherTK
 	o.Aux = new(curve.PointAffine).ScalarMultiplication(&_ah, a)
 
-	randint = mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint = mathrand.Intn(1100) + 10
 	commr := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.Commentr = commr
 	o.CommentG.X.SetBigInt(params.Base[0])
@@ -207,7 +210,9 @@ func (t PrimitiveAccount) GetAccount(params *twistededwards.CurveParams, hashFun
 }
 
 func (d DeriveKeypair) DkeypairGen(order *big.Int, pk util.Publickey, sk util.Privatekey) DeriveKeypair {
-	d.Deriver, _ = rand.Int(rand.Reader, order)
+	mathrand.Seed(time.Now().UnixNano())
+	randint := mathrand.Intn(1100) + 10
+	d.Deriver = new(big.Int).Sub(order, big.NewInt(int64(randint)))
 
 	dsk := new(big.Int).Mul(d.Deriver, sk.Sk)
 	d.DSk = util.Privatekey{Sk: dsk}
@@ -232,7 +237,8 @@ func (d DeriveAccount) DaccountGen(params *twistededwards.CurveParams, hashFunc 
 
 	d.Bal = priacc.Bal
 
-	randint := mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint := mathrand.Intn(1100) + 10
 	dr := new(big.Int).Sub(params.Order, big.NewInt(int64(randint)))
 	d.R = dr
 

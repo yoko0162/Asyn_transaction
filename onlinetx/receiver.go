@@ -6,7 +6,6 @@ import (
 	"Asyn_CBDC/onlinetx/sigma"
 	"Asyn_CBDC/util"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -37,18 +36,10 @@ type receiver struct {
 }
 
 func accAggregation(tx transactionTX, dacc offlinetx.DeriveAccount) []curve.PointAffine {
-	txc1 := tx.A
-	txc2 := tx.B
+	c1 := new(curve.PointAffine).Add(&tx.A, &dacc.Acc[0])
+	c2 := new(curve.PointAffine).Add(&tx.B, &dacc.Acc[1])
 
-	dacc1 := dacc.Acc[0]
-	dacc2 := dacc.Acc[1]
-
-	var c1 curve.PointAffine
-	c1.Add(&txc1, &dacc1)
-	var c2 curve.PointAffine
-	c2.Add(&txc2, &dacc2)
-
-	return []curve.PointAffine{c1, c2}
+	return []curve.PointAffine{*c1, *c2}
 }
 
 func (r receiver) execution(params *twistededwards.CurveParams, s sender, o offlinetx.Offline) receiver {
@@ -66,23 +57,23 @@ func (r receiver) execution(params *twistededwards.CurveParams, s sender, o offl
 	r.date = o.Date
 
 	rb, _ := rand.Int(rand.Reader, params.Order)
+	rb = rb.Add(rb, big.NewInt(10)).Mod(rb, params.Order)
 	r.r_bal = rb
 
 	var _trans curve.PointAffine
 	_trans.X.SetBigInt(params.Base[0])
 	_trans.Y.SetBigInt(params.Base[1])
 	r._trans = _trans
-	var aplain_bal curve.PointAffine
-	aplain_bal.ScalarMultiplication(&_trans, &r.bal)
+	aplain_bal := new(curve.PointAffine).ScalarMultiplication(&_trans, &r.bal)
 	var h curve.PointAffine
 	h.X.SetBigInt(params.Base[0])
 	h.Y.SetBigInt(params.Base[1])
 	r.h = h
-	r.cipher_bal = r.apk.Encrypt(&aplain_bal, r.r_bal, r.h)
+	r.cipher_bal = r.apk.Encrypt(aplain_bal, r.r_bal, r.h)
 	return r
 }
 
-func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecctedwards.ID, s sender) (sigmaProof, receiver) {
+func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecctedwards.ID, s sender) (sigmaProof, receiver, time.Duration) {
 	hashFunc := hash.MIMC_BN254
 
 	var o offlinetx.Offline
@@ -91,14 +82,9 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 	r = r.execution(params, s, o)
 
 	pk := r.pk
-	bv := big.NewInt(1)
-	bv.Add(&r.bal, &r.v)
+	bv := new(big.Int).Add(&r.bal, &r.v)
 	delta := o.Deriveacc.Delta
-	_betar_gammar := big.NewInt(1)
-	_betar_gammar = _betar_gammar.Mul(r.beta, r.r_txr)
-	betar_gammar := big.NewInt(1)
-	betar_gammar = betar_gammar.Mul(o.Deriveacc.Keypair.Deriver, o.Deriveacc.R)
-	betar_gammar = betar_gammar.Add(betar_gammar, _betar_gammar)
+	betar_gammar := new(big.Int).Add(new(big.Int).Mul(o.Deriveacc.Keypair.Deriver, o.Deriveacc.R), new(big.Int).Mul(r.beta, r.r_txr))
 
 	/* */
 	starttime := time.Now()
@@ -120,9 +106,8 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 	commit_h := commit.Commitmul(para_h, &r.dacc.H)
 	commit_g0g1 := commit.Commitmuladd(para_g0, para_g1, r.dacc.G0, r.dacc.G1)
 	commit_pk := commit.Commitmul(para_h, &pk)
-	var _commit_g0g1pk curve.PointAffine
-	_commit_g0g1pk.Add(&commit_g0g1.Commit, &commit_pk.Commit)
-	commit_g0g1pk := sigma.CommitMent{Commit: _commit_g0g1pk}
+	_commit_g0g1pk := new(curve.PointAffine).Add(&commit_g0g1.Commit, &commit_pk.Commit)
+	commit_g0g1pk := sigma.CommitMent{Commit: *_commit_g0g1pk}
 
 	commit_bal := commit.CommitencValid(para_bal, para_bal_r, r.apk, r.h, r._trans)
 
@@ -162,7 +147,7 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 
 	endtime := time.Now()
 
-	fmt.Println("sigma----generate commitment,challenge,response cost:", endtime.Sub(starttime))
+	//fmt.Println("sigma----generate commitment,challenge,response cost:", endtime.Sub(starttime))
 
 	return (sigmaProof{
 		commit: []sigma.CommitMent{
@@ -175,20 +160,30 @@ func (r receiver) sigmaprotocol(params *twistededwards.CurveParams, curveid ecct
 			rp_h, rp_g0, rp_g1, rp_bal, rp_bal_r, rp_date, rp_dater,
 		},
 		challenge: challenge,
-	}), r
+	}), r, endtime.Sub(starttime)
 }
 
-func (_ receiver) zkpProof(params *twistededwards.CurveParams, curveid ecctedwards.ID, frmodulus *big.Int, s sender) (receiver, sigmaProof, bulletProof) {
+func (_ receiver) zkpProof(params *twistededwards.CurveParams, curveid ecctedwards.ID, frmodulus *big.Int, s sender) (receiver, sigmaProof, bulletProof, bulletProof, bulletProof, int64) {
 	var r receiver
 	var sigmaproof sigmaProof
-	sigmaproof, r = r.sigmaprotocol(params, curveid, s)
+	var t_sigmagen time.Duration
+	sigmaproof, r, t_sigmagen = r.sigmaprotocol(params, curveid, s)
 	bal := r.bal
 
 	var bpPara bulletproof.BulletParams
 	bpPara = bpPara.ParamsGen()
 
 	var bp1 bulletProof
-	bp1 = bp1.rangeproof(&bal, bpPara)
+	var t_bp1 time.Duration
+	bp1, t_bp1 = bp1.rangeproof(&bal, bpPara)
+	var holding bulletProof
+	var t_holding time.Duration
+	holding, t_holding = holding.rangeproof(big.NewInt(200), bpPara)
+	var date bulletProof
+	var t_date time.Duration
+	date, t_date = date.rangeproof(big.NewInt(200), bpPara)
 
-	return r, sigmaproof, bp1
+	var r_totalzkptime int64
+	r_totalzkptime = t_sigmagen.Microseconds() + t_bp1.Microseconds() + t_holding.Microseconds() + t_date.Microseconds()
+	return r, sigmaproof, bp1, holding, date, r_totalzkptime
 }

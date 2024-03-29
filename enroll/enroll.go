@@ -28,12 +28,11 @@ type Enroll struct {
 }
 
 func (enroll Enroll) Init(params *twistededwards.CurveParams, hash hash.Hash) Enroll {
-	mathrand.Seed(time.Now().UnixNano())
-
 	enroll.G0.X.SetBigInt(params.Base[0])
 	enroll.G0.Y.SetBigInt(params.Base[1])
 
-	randint := mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint := mathrand.Intn(1100) + 10
 	tk := new(big.Int).Sub(params.Order, big.NewInt(int64(randint)))
 	enroll.G2.X.SetBigInt(params.Base[0])
 	enroll.G2.Y.SetBigInt(params.Base[1])
@@ -57,7 +56,8 @@ func (enroll Enroll) Init(params *twistededwards.CurveParams, hash hash.Hash) En
 	enroll.G1.X.SetBigInt(params.Base[0])
 	enroll.G1.Y.SetBigInt(params.Base[1])
 
-	randint = mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint = mathrand.Intn(1100) + 10
 	_sk := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	enroll.Sk = util.Privatekey{Sk: _sk}
 	enroll.H.X.SetBigInt(params.Base[0])
@@ -65,7 +65,8 @@ func (enroll Enroll) Init(params *twistededwards.CurveParams, hash hash.Hash) En
 
 	_pk := new(curve.PointAffine).ScalarMultiplication(&enroll.H, _sk)
 	enroll.Pk = util.Publickey{Pk: *_pk}
-	randint = mathrand.Intn(11) + 10
+	mathrand.Seed(time.Now().UnixNano())
+	randint = mathrand.Intn(1100) + 10
 	r := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	enroll.R = r
 

@@ -3,14 +3,13 @@ package onlinetx
 import (
 	"Asyn_CBDC/onlinetx/bulletproof"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"time"
 
 	eccfr "github.com/consensys/gnark-crypto/ecc/bn254"
 )
 
-func (bp bulletProof) rangeproof(num *big.Int, bpPara bulletproof.BulletParams) bulletProof {
+func (bp bulletProof) rangeproof(num *big.Int, bpPara bulletproof.BulletParams) (bulletProof, time.Duration) {
 	v := num
 
 	n := bpPara.N
@@ -111,7 +110,7 @@ func (bp bulletProof) rangeproof(num *big.Int, bpPara bulletproof.BulletParams) 
 
 	endtime := time.Now()
 
-	fmt.Println("bp----generate commitment,challenge,response cost:", endtime.Sub(starttime))
+	//fmt.Println("bp----generate commitment,challenge,response cost:", endtime.Sub(starttime))
 
-	return bp
+	return bp, endtime.Sub(starttime)
 }
