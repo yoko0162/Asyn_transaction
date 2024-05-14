@@ -44,7 +44,7 @@ func Calculate_delta(data []byte, hash hash.Hash) *big.Int {
 	return delta
 }
 
-func Regulation_TK(cipher []curve.PointAffine, a *big.Int) []curve.PointAffine {
+func Regulation_PK(cipher []curve.PointAffine, a *big.Int) []curve.PointAffine {
 	c1 := new(curve.PointAffine).ScalarMultiplication(&cipher[0], a)
 	c2 := new(curve.PointAffine).ScalarMultiplication(&cipher[1], a)
 	return []curve.PointAffine{*c1, *c2}

@@ -25,15 +25,16 @@ func EncryptAcc(curve twistededwards.Curve, plain twistededwards.Point, pk twist
 	return Account{c1, c2}
 }
 
-func DecryptAcc(curve twistededwards.Curve, cipher Account, sk frontend.Variable, delta twistededwards.Point) twistededwards.Point {
+func DecryptAcc(curve twistededwards.Curve, cipher Account, sk frontend.Variable /*delta twistededwards.Point*/) twistededwards.Point {
 	_plain := curve.Add(cipher.A, curve.Neg(curve.ScalarMul(cipher.B, sk)))
-	_delta := curve.Neg(delta)
+	//_delta := curve.Neg(delta)
 
-	return curve.Add(_plain, _delta)
+	//return curve.Add(_plain, _delta)
+	return _plain
 }
 
-func EncryptTK(curve twistededwards.Curve, TK twistededwards.Point, pk twistededwards.Point, r frontend.Variable, g *twistededwards.CurveParams) []twistededwards.Point {
-	c1 := curve.Add(TK, curve.ScalarMul(pk, r))
+func EncryptPk(curve twistededwards.Curve, m twistededwards.Point, pk twistededwards.Point, r frontend.Variable, g *twistededwards.CurveParams) []twistededwards.Point {
+	c1 := curve.Add(m, curve.ScalarMul(pk, r))
 
 	h := twistededwards.Point{X: g.Base[0], Y: g.Base[1]}
 	c2 := curve.ScalarMul(h, r)

@@ -55,7 +55,6 @@ type Offline struct {
 	G0            curve.PointAffine
 	Bal           big.Int
 	Tracesk       util.Privatekey
-	Tracepk       util.Publickey
 	Delta         *big.Int
 	G1            curve.PointAffine
 	H             curve.PointAffine
@@ -65,7 +64,8 @@ type Offline struct {
 	Deriveacc     DeriveAccount
 	Ar            *big.Int
 	Apk           util.Publickey
-	CipherTk      []curve.PointAffine
+	CipherPk      []curve.PointAffine
+	RegTk         []curve.PointAffine
 	A             *big.Int
 	Aux           *curve.PointAffine
 	Date          *big.Int
@@ -90,7 +90,7 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	testacc = testacc.GetAccount(params, hash, balance, oldseq)
 	o.Delta = testacc.Delta
 
-	o.Tracepk = testacc.Tracepk
+	//o.Tracepk = testacc.Tracepk
 	o.Tracesk = testacc.Tracesk
 
 	o.Sk = testacc.Sk
@@ -133,7 +133,7 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	o.G1 = Dacc.G1
 	o.H = Dacc.H
 
-	//C_TK
+	//C_PKU
 	mathrand.Seed(time.Now().UnixNano())
 	randint := mathrand.Intn(1100) + 10
 	_aprivatekey := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
@@ -148,13 +148,15 @@ func (o Offline) Execution(params *twistededwards.CurveParams, hash hash.Hash, c
 	randint = mathrand.Intn(1100) + 10
 	ar := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.Ar = ar
-	_cipherTK := o.Apk.Encrypt(&testacc.Tracepk.Pk, ar, _ah)
+	//_cipherTK := o.Apk.Encrypt(&testacc.Tracepk.Pk, ar, _ah)
+	_cipherPK := o.Apk.Encrypt(&testacc.Pk.Pk, ar, _ah)
+	o.CipherPk = _cipherPK
 	mathrand.Seed(time.Now().UnixNano())
 	randint = mathrand.Intn(1100) + 10
 	a := new(big.Int).Sub(modulus, big.NewInt(int64(randint)))
 	o.A = a
-	cipherTK := util.Regulation_TK(_cipherTK, a)
-	o.CipherTk = cipherTK
+	regTK := util.Regulation_PK(_cipherPK, a)
+	o.RegTk = regTK
 	o.Aux = new(curve.PointAffine).ScalarMultiplication(&_ah, a)
 
 	mathrand.Seed(time.Now().UnixNano())

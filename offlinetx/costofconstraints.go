@@ -13,80 +13,6 @@ import (
 )
 
 func T_OfflineTx() {
-	curveid := ecctedwards.BN254
-
-	hashFunc := hash.MIMC_BN254
-	params, _ := twistededwards.GetCurveParams(curveid)
-
-	var offline Offline
-	offline = offline.Execution(params, hashFunc, curveid)
-
-	var circuit offlineCircuit
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
-
-	pk, vk, err := groth16.Setup(r1cs)
-
-	var assignment offlineCircuit
-
-	acc_c1 := offline.OldAcc[0]
-	acc_c2 := offline.OldAcc[1]
-	acc := util.Account{
-		A: twistededwards.Point{X: acc_c1.X, Y: acc_c1.Y},
-		B: twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
-	}
-	assignment.Acc = acc
-	assignment.TacSk = offline.Tracesk.Sk
-	assignment.Seq = offline.Oldseq
-	assignment.Seq1 = offline.Newseq
-	assignment.ExpectedDelta = offline.Delta
-
-	dacccipher := offline.Deriveacc.Acc
-	dacc_c1 := dacccipher[0]
-	dacc_c2 := dacccipher[1]
-	dacc := util.Account{
-		A: twistededwards.Point{X: dacc_c1.X, Y: dacc_c1.Y},
-		B: twistededwards.Point{X: dacc_c2.X, Y: dacc_c2.Y},
-	}
-	assignment.ExpectedDAcc = dacc
-	assignment.ExpectedDPublicKey = twistededwards.Point{
-		X: offline.Deriveacc.Keypair.DPk.Pk.X,
-		Y: offline.Deriveacc.Keypair.DPk.Pk.Y,
-	}
-	assignment.PrivateKey = offline.Sk.Sk
-	assignment.PublicKey = twistededwards.Point{X: offline.Pk.Pk.X, Y: offline.Pk.Pk.Y}
-	assignment.Alpha = offline.Deriveacc.Keypair.Deriver
-	assignment.Randomness = offline.Deriveacc.R
-	var ctacpk [2]twistededwards.Point
-	ctacpk[0] = twistededwards.Point{X: offline.CipherTk[0].X, Y: offline.CipherTk[0].Y}
-	ctacpk[1] = twistededwards.Point{X: offline.CipherTk[1].X, Y: offline.CipherTk[1].Y}
-	assignment.ExpectedCTacPk = ctacpk
-	assignment.PublicKeyA = twistededwards.Point{X: offline.Apk.Pk.X, Y: offline.Apk.Pk.Y}
-	assignment.RandomnessA = offline.Ar
-	assignment.A = offline.A
-	assignment.ExpectedAux = twistededwards.Point{
-		X: offline.Aux.X,
-		Y: offline.Aux.Y,
-	}
-	assignment.Date = offline.Date
-	assignment.Comment = twistededwards.Point{
-		X: offline.Comment.X,
-		Y: offline.Comment.Y,
-	}
-	assignment.Commentr = offline.Commentr
-
-	_sigpublicKey := offline.Sigpk.Bytes()
-	assignment.SigPublicKey.Assign(curveid, _sigpublicKey[:32])
-	assignment.Signature.Assign(curveid, offline.Signature)
-	assignment.DateSignature.Assign(curveid, offline.DateSignature)
-
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	publicWitness, err := witness.Public()
-	proof, err := groth16.Prove(r1cs, pk, witness)
-
-	err = groth16.Verify(proof, vk, publicWitness)
-	if err != nil {
-		// invalid proof
-	}
 
 	/* test */
 	/*var _g1delta3 curve.PointAffine
@@ -125,4 +51,279 @@ func T_OfflineTx() {
 	dplaintext.Add(&_g1delta4, &g0bal)
 	dg0bal := Dacc.Keypair.DSk.Decryptacc(Dacc.Acc, _g1delta4)
 	fmt.Println("test encrypt and decrypt:(DAcc)", dg0bal.Equal(&g0bal))*/
+}
+
+func T_offlineTxWithNoRegulation() {
+	curveid := ecctedwards.BN254
+
+	hashFunc := hash.MIMC_BN254
+	params, _ := twistededwards.GetCurveParams(curveid)
+
+	var offline Offline
+	offline = offline.Execution(params, hashFunc, curveid)
+
+	var circuit nonRegulationCircuit
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+
+	pk, vk, err := groth16.Setup(r1cs)
+
+	var assignment nonRegulationCircuit
+
+	acc_c1 := offline.OldAcc[0]
+	acc_c2 := offline.OldAcc[1]
+	acc := util.Account{
+		A: twistededwards.Point{X: acc_c1.X, Y: acc_c1.Y},
+		B: twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
+	}
+	assignment.Acc = acc
+	assignment.Bal = offline.Bal
+	assignment.TacSk = offline.Tracesk.Sk
+	assignment.Seq = offline.Oldseq
+	assignment.Seq1 = offline.Newseq
+	assignment.ExpectedDelta = offline.Delta
+
+	dacccipher := offline.Deriveacc.Acc
+	dacc_c1 := dacccipher[0]
+	dacc_c2 := dacccipher[1]
+	dacc := util.Account{
+		A: twistededwards.Point{X: dacc_c1.X, Y: dacc_c1.Y},
+		B: twistededwards.Point{X: dacc_c2.X, Y: dacc_c2.Y},
+	}
+	assignment.ExpectedDAcc = dacc
+	assignment.ExpectedDPublicKey = twistededwards.Point{
+		X: offline.Deriveacc.Keypair.DPk.Pk.X,
+		Y: offline.Deriveacc.Keypair.DPk.Pk.Y,
+	}
+	assignment.PrivateKey = offline.Sk.Sk
+	assignment.PublicKey = twistededwards.Point{X: offline.Pk.Pk.X, Y: offline.Pk.Pk.Y}
+	assignment.Alpha = offline.Deriveacc.Keypair.Deriver
+	assignment.Randomness = offline.Deriveacc.R
+
+	_sigpublicKey := offline.Sigpk.Bytes()
+	assignment.SigPublicKey.Assign(curveid, _sigpublicKey[:32])
+	assignment.Signature.Assign(curveid, offline.Signature)
+
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	publicWitness, err := witness.Public()
+	proof, err := groth16.Prove(r1cs, pk, witness)
+
+	err = groth16.Verify(proof, vk, publicWitness)
+	if err != nil {
+		// invalid proof
+	}
+}
+
+func T_offlineTxWithNoLimitRegulation() {
+	curveid := ecctedwards.BN254
+
+	hashFunc := hash.MIMC_BN254
+	params, _ := twistededwards.GetCurveParams(curveid)
+
+	var offline Offline
+	offline = offline.Execution(params, hashFunc, curveid)
+
+	var circuit nolimitRegulationCircuit
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+
+	pk, vk, err := groth16.Setup(r1cs)
+
+	var assignment nolimitRegulationCircuit
+
+	acc_c1 := offline.OldAcc[0]
+	acc_c2 := offline.OldAcc[1]
+	acc := util.Account{
+		A: twistededwards.Point{X: acc_c1.X, Y: acc_c1.Y},
+		B: twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
+	}
+	assignment.Acc = acc
+	assignment.Bal = offline.Bal
+	assignment.TacSk = offline.Tracesk.Sk
+	assignment.Seq = offline.Oldseq
+	assignment.Seq1 = offline.Newseq
+	assignment.ExpectedDelta = offline.Delta
+
+	dacccipher := offline.Deriveacc.Acc
+	dacc_c1 := dacccipher[0]
+	dacc_c2 := dacccipher[1]
+	dacc := util.Account{
+		A: twistededwards.Point{X: dacc_c1.X, Y: dacc_c1.Y},
+		B: twistededwards.Point{X: dacc_c2.X, Y: dacc_c2.Y},
+	}
+	assignment.ExpectedDAcc = dacc
+	assignment.ExpectedDPublicKey = twistededwards.Point{
+		X: offline.Deriveacc.Keypair.DPk.Pk.X,
+		Y: offline.Deriveacc.Keypair.DPk.Pk.Y,
+	}
+	assignment.PrivateKey = offline.Sk.Sk
+	assignment.PublicKey = twistededwards.Point{X: offline.Pk.Pk.X, Y: offline.Pk.Pk.Y}
+	assignment.Alpha = offline.Deriveacc.Keypair.Deriver
+	assignment.Randomness = offline.Deriveacc.R
+	var cpk [2]twistededwards.Point
+	cpk[0] = twistededwards.Point{X: offline.CipherPk[0].X, Y: offline.CipherPk[0].Y}
+	cpk[1] = twistededwards.Point{X: offline.CipherPk[1].X, Y: offline.CipherPk[1].Y}
+	assignment.ExpectedCPk = cpk
+	assignment.PublicKeyA = twistededwards.Point{X: offline.Apk.Pk.X, Y: offline.Apk.Pk.Y}
+	assignment.RandomnessA = offline.Ar
+
+	_sigpublicKey := offline.Sigpk.Bytes()
+	assignment.SigPublicKey.Assign(curveid, _sigpublicKey[:32])
+	assignment.Signature.Assign(curveid, offline.Signature)
+
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	publicWitness, err := witness.Public()
+	proof, err := groth16.Prove(r1cs, pk, witness)
+
+	err = groth16.Verify(proof, vk, publicWitness)
+	if err != nil {
+		// invalid proof
+	}
+}
+
+func T_offlineTxWithHoldinglimitRegulation() {
+	curveid := ecctedwards.BN254
+
+	hashFunc := hash.MIMC_BN254
+	params, _ := twistededwards.GetCurveParams(curveid)
+
+	var offline Offline
+	offline = offline.Execution(params, hashFunc, curveid)
+
+	var circuit holdinglimitRegulationCircuit
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+
+	pk, vk, err := groth16.Setup(r1cs)
+
+	var assignment holdinglimitRegulationCircuit
+
+	acc_c1 := offline.OldAcc[0]
+	acc_c2 := offline.OldAcc[1]
+	acc := util.Account{
+		A: twistededwards.Point{X: acc_c1.X, Y: acc_c1.Y},
+		B: twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
+	}
+	assignment.Acc = acc
+	assignment.Bal = offline.Bal
+	assignment.TacSk = offline.Tracesk.Sk
+	assignment.Seq = offline.Oldseq
+	assignment.Seq1 = offline.Newseq
+	assignment.ExpectedDelta = offline.Delta
+
+	dacccipher := offline.Deriveacc.Acc
+	dacc_c1 := dacccipher[0]
+	dacc_c2 := dacccipher[1]
+	dacc := util.Account{
+		A: twistededwards.Point{X: dacc_c1.X, Y: dacc_c1.Y},
+		B: twistededwards.Point{X: dacc_c2.X, Y: dacc_c2.Y},
+	}
+	assignment.ExpectedDAcc = dacc
+	assignment.ExpectedDPublicKey = twistededwards.Point{
+		X: offline.Deriveacc.Keypair.DPk.Pk.X,
+		Y: offline.Deriveacc.Keypair.DPk.Pk.Y,
+	}
+	assignment.PrivateKey = offline.Sk.Sk
+	assignment.PublicKey = twistededwards.Point{X: offline.Pk.Pk.X, Y: offline.Pk.Pk.Y}
+	assignment.Alpha = offline.Deriveacc.Keypair.Deriver
+	assignment.Randomness = offline.Deriveacc.R
+	var cpk [2]twistededwards.Point
+	cpk[0] = twistededwards.Point{X: offline.RegTk[0].X, Y: offline.RegTk[0].Y}
+	cpk[1] = twistededwards.Point{X: offline.RegTk[1].X, Y: offline.RegTk[1].Y}
+	assignment.ExpectedCPk = cpk
+	assignment.PublicKeyA = twistededwards.Point{X: offline.Apk.Pk.X, Y: offline.Apk.Pk.Y}
+	assignment.RandomnessA = offline.Ar
+	assignment.A = offline.A
+	assignment.ExpectedAux = twistededwards.Point{
+		X: offline.Aux.X,
+		Y: offline.Aux.Y,
+	}
+
+	_sigpublicKey := offline.Sigpk.Bytes()
+	assignment.SigPublicKey.Assign(curveid, _sigpublicKey[:32])
+	assignment.Signature.Assign(curveid, offline.Signature)
+
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	publicWitness, err := witness.Public()
+	proof, err := groth16.Prove(r1cs, pk, witness)
+
+	err = groth16.Verify(proof, vk, publicWitness)
+	if err != nil {
+		// invalid proof
+	}
+}
+
+func T_offlineTxWithFreqlimitRegulation() {
+	curveid := ecctedwards.BN254
+
+	hashFunc := hash.MIMC_BN254
+	params, _ := twistededwards.GetCurveParams(curveid)
+
+	var offline Offline
+	offline = offline.Execution(params, hashFunc, curveid)
+
+	var circuit freqlimitRegulationCircuit
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+
+	pk, vk, err := groth16.Setup(r1cs)
+
+	var assignment freqlimitRegulationCircuit
+
+	acc_c1 := offline.OldAcc[0]
+	acc_c2 := offline.OldAcc[1]
+	acc := util.Account{
+		A: twistededwards.Point{X: acc_c1.X, Y: acc_c1.Y},
+		B: twistededwards.Point{X: acc_c2.X, Y: acc_c2.Y},
+	}
+	assignment.Acc = acc
+	assignment.Bal = offline.Bal
+	assignment.TacSk = offline.Tracesk.Sk
+	assignment.Seq = offline.Oldseq
+	assignment.Seq1 = offline.Newseq
+	assignment.ExpectedDelta = offline.Delta
+
+	dacccipher := offline.Deriveacc.Acc
+	dacc_c1 := dacccipher[0]
+	dacc_c2 := dacccipher[1]
+	dacc := util.Account{
+		A: twistededwards.Point{X: dacc_c1.X, Y: dacc_c1.Y},
+		B: twistededwards.Point{X: dacc_c2.X, Y: dacc_c2.Y},
+	}
+	assignment.ExpectedDAcc = dacc
+	assignment.ExpectedDPublicKey = twistededwards.Point{
+		X: offline.Deriveacc.Keypair.DPk.Pk.X,
+		Y: offline.Deriveacc.Keypair.DPk.Pk.Y,
+	}
+	assignment.PrivateKey = offline.Sk.Sk
+	assignment.PublicKey = twistededwards.Point{X: offline.Pk.Pk.X, Y: offline.Pk.Pk.Y}
+	assignment.Alpha = offline.Deriveacc.Keypair.Deriver
+	assignment.Randomness = offline.Deriveacc.R
+	var cpk [2]twistededwards.Point
+	cpk[0] = twistededwards.Point{X: offline.RegTk[0].X, Y: offline.RegTk[0].Y}
+	cpk[1] = twistededwards.Point{X: offline.RegTk[1].X, Y: offline.RegTk[1].Y}
+	assignment.ExpectedCPk = cpk
+	assignment.PublicKeyA = twistededwards.Point{X: offline.Apk.Pk.X, Y: offline.Apk.Pk.Y}
+	assignment.RandomnessA = offline.Ar
+	assignment.A = offline.A
+	assignment.ExpectedAux = twistededwards.Point{
+		X: offline.Aux.X,
+		Y: offline.Aux.Y,
+	}
+	assignment.Date = offline.Date
+	assignment.Comment = twistededwards.Point{
+		X: offline.Comment.X,
+		Y: offline.Comment.Y,
+	}
+	assignment.Commentr = offline.Commentr
+
+	_sigpublicKey := offline.Sigpk.Bytes()
+	assignment.SigPublicKey.Assign(curveid, _sigpublicKey[:32])
+	assignment.Signature.Assign(curveid, offline.Signature)
+	assignment.DateSignature.Assign(curveid, offline.DateSignature)
+
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	publicWitness, err := witness.Public()
+	proof, err := groth16.Prove(r1cs, pk, witness)
+
+	err = groth16.Verify(proof, vk, publicWitness)
+	if err != nil {
+		// invalid proof
+	}
 }
